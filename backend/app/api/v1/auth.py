@@ -8,6 +8,7 @@ from app.schemas.auth.requests import LoginRequest
 from app.schemas.auth.responses import TokenResponse
 from app.repositories.user_repo import UserRepository
 from app.services.auth_srv import AuthService
+from fastapi.security import OAuth2PasswordRequestForm
 
 router = APIRouter()
 
@@ -17,10 +18,10 @@ def get_auth_service(db: AsyncSession = Depends(get_db)) -> AuthService:
 @router.post("/login", response_model=TokenResponse)
 async def login(
     response: Response, 
-    schema: LoginRequest, 
+    form_data: OAuth2PasswordRequestForm = Depends(),
     auth_srv: AuthService = Depends(get_auth_service)
 ):
-    user = await auth_srv.authenticate_user(schema.username, schema.password)
+    user = await auth_srv.authenticate_user(form_data.username, form_data.password)
     
     access_token, refresh_token = auth_srv.create_tokens(user.id, user.role)
     
@@ -28,8 +29,8 @@ async def login(
         key="refresh_token",
         value=refresh_token,
         httponly=True,
-        secure=True,
-        samesite="strict",
+        secure=True,          
+        samesite="strict",    
         max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60
     )
     

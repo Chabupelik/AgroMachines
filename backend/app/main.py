@@ -12,6 +12,7 @@ from app.db.database import engine
 from app.db.redis import redis_client
 from app.api.v1.leads import router as leads_router
 from app.api.v1.auth import router as auth_router
+from app.api.v1.machines import router as machines_router
 from sqlalchemy import text
 
 @asynccontextmanager
@@ -102,6 +103,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 app.include_router(leads_router, prefix="/api/v1/leads", tags=["Leads"])
 app.include_router(auth_router, prefix="/api/v1/auth", tags=["Auth"])
+app.include_router(machines_router, prefix="/api/v1/machines", tags=["Machines"])
 
 
 @app.get("/health")
