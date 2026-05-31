@@ -7,6 +7,7 @@ from app.repositories.audit_repo import AuditRepository
 from app.services.lead_service import LeadService
 from app.schemas.lead.requests import LeadCreateRequest
 from app.schemas.lead.responses import LeadResponse
+from app.schemas.common import ResponseOK, ResponseError
 from app.integrations.captcha.turnstile import verify_turnstile_token
 from app.api.dependencies import rate_limiter, require_manager, require_superadmin
 from app.models.user import User
@@ -18,9 +19,14 @@ def get_lead_service(db: AsyncSession = Depends(get_db)) -> LeadService:
 
 @router.post(
     "/",
-    response_model=LeadResponse,
+    response_model=ResponseOK[LeadResponse], 
     status_code=status.HTTP_201_CREATED,
     summary="Создать новую заявку на обратный звонок (Открыто для всех)",
+    responses={
+        400: {"model": ResponseError, "description": "Ошибка капчи или валидации"},
+        409: {"model": ResponseError, "description": "Дубликат активной заявки"},
+        429: {"model": ResponseError, "description": "Превышен лимит запросов (Rate Limit)"}
+    },
     dependencies=[Depends(rate_limiter)] 
 )
 async def create_lead(
@@ -36,7 +42,9 @@ async def create_lead(
             detail="Проверка безопасности (капча) не пройдена. Пожалуйста, попробуйте еще раз."
         )
 
-    return await lead_service.create_lead(schema, background_tasks)
+    lead = await lead_service.create_lead(schema, background_tasks)
+    
+    return {"data": lead}
 
 
 @router.get(
