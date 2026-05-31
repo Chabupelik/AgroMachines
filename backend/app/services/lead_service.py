@@ -3,7 +3,7 @@ from fastapi import BackgroundTasks
 from app.workers.telegram_tasks import task_notify_new_lead
 from app.repositories.lead_repo import LeadRepository
 from app.repositories.audit_repo import AuditRepository
-from app.models.lead import Lead
+from app.models.lead import Lead, LeadStatus
 from app.schemas.lead.requests import LeadCreateRequest
 
 class LeadService:
@@ -40,3 +40,25 @@ class LeadService:
         )
 
         return saved_lead
+    async def take_lead_from_tg(self, lead_id: int, tg_username: str) -> str:
+
+        success = await self.lead_repo.atomic_update_status(
+            lead_id=lead_id,
+            old_status=LeadStatus.NEW,
+            new_status=LeadStatus.IN_PROGRESS
+        )
+        
+        if success:
+            await self.audit_repo.log_action(
+                action=f"TAKE_LEAD_BY_TG_@{tg_username}",
+                entity_type="lead",
+                entity_id=lead_id,
+                user_id=None
+            )
+            return "SUCCESS"
+            
+        lead = await self.lead_repo.get_by_id(lead_id)
+        if not lead:
+            return "NOT_FOUND"
+            
+        return "ALREADY_TAKEN"

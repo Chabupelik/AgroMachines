@@ -1,6 +1,8 @@
 from typing import Optional
 from sqlalchemy import select
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
+from datetime import datetime, timezone
 from app.repositories.base import BaseRepository
 from app.models.lead import Lead, LeadStatus
 
@@ -15,3 +17,16 @@ class LeadRepository(BaseRepository[Lead]):
         )
         result = await self.session.execute(query)
         return result.scalar_one_or_none()
+    
+    async def atomic_update_status(self, lead_id: int, old_status: LeadStatus, new_status: LeadStatus) -> bool:
+
+        query = (
+            update(self.model)
+            .where(self.model.id == lead_id, self.model.status == old_status)
+            .values(status=new_status, updated_at=datetime.now(timezone.utc))
+        )
+        result = await self.session.execute(query)
+        await self.session.commit()
+        
+        # rowcount вернет 1, если строка реально обновилась, и 0, если статус уже был изменен
+        return result.rowcount > 0
