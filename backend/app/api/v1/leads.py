@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Depends, status
+from fastapi import BackgroundTasks
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.db.database import get_db
 from app.repositories.lead_repo import LeadRepository
@@ -22,6 +23,7 @@ def get_lead_service(db: AsyncSession = Depends(get_db)) -> LeadService:
 )
 async def create_lead(
     schema: LeadCreateRequest,
+    background_tasks: BackgroundTasks,
     lead_service: LeadService = Depends(get_lead_service)
 ):
-    return await lead_service.create_lead(schema)
+    return await lead_service.create_lead(schema, background_tasks)

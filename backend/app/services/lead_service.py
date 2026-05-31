@@ -1,4 +1,6 @@
 from fastapi import HTTPException, status
+from fastapi import BackgroundTasks
+from app.workers.telegram_tasks import task_notify_new_lead
 from app.repositories.lead_repo import LeadRepository
 from app.repositories.audit_repo import AuditRepository
 from app.models.lead import Lead
@@ -9,7 +11,7 @@ class LeadService:
         self.lead_repo = lead_repo
         self.audit_repo = audit_repo
 
-    async def create_lead(self, schema: LeadCreateRequest) -> Lead:
+    async def create_lead(self, schema: LeadCreateRequest, bg_tasks: BackgroundTasks) -> Lead:
         existing_active_lead = await self.lead_repo.get_active_by_phone(schema.client_phone)
         if existing_active_lead:
             raise HTTPException(
@@ -27,7 +29,14 @@ class LeadService:
             action="CREATE_LEAD",
             entity_type="lead",
             entity_id=saved_lead.id,
-            user_id=None
+            user_id=None 
+        )
+
+        bg_tasks.add_task(
+            task_notify_new_lead,
+            lead_id=saved_lead.id,
+            name=saved_lead.client_name,
+            phone=saved_lead.client_phone
         )
 
         return saved_lead
