@@ -1,3 +1,4 @@
+import uuid
 from typing import Generic, TypeVar, Type, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
@@ -10,7 +11,7 @@ class BaseRepository(Generic[ModelType]):
         self.model = model
         self.session = session
 
-    async def get_by_id(self, id: int | str | id) -> Optional[ModelType]:
+    async def get_by_id(self, id: int | str | uuid.UUID) -> Optional[ModelType]:
         query = select(self.model).where(self.model.id == id)
         result = await self.session.execute(query)
         return result.scalar_one_or_none()

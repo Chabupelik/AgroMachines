@@ -7,6 +7,7 @@ from sqlalchemy import text
 from app.core.config import settings
 from app.db.database import engine
 from app.db.redis import redis_client
+from app.api.v1.leads import router as leads_router
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -54,6 +55,8 @@ app.add_middleware(
     allow_methods=["*"],     
     allow_headers=["*"],     
 )
+
+app.include_router(leads_router, prefix="/api/v1/leads", tags=["Leads"])
 
 @app.get("/health")
 async def health_check():
