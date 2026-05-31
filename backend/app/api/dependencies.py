@@ -1,10 +1,11 @@
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer
 from jose import jwt, JWTError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.db.database import get_db
+from app.db.redis import redis_client
 from app.repositories.user_repo import UserRepository
 from app.models.user import User, RoleEnum
 
@@ -38,6 +39,24 @@ async def get_current_user(
         raise credentials_exception
         
     return user
+
+async def rate_limiter(request: Request):
+    ip = request.client.host
+    path = request.url.path
+    key = f"rate_limit:{ip}:{path}"
+    
+    current_requests = await redis_client.get(key)
+    
+    if current_requests and int(current_requests) >= 5:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Слишком много запросов. Пожалуйста, попробуйте позже."
+        )
+        
+    await redis_client.incr(key)
+    
+    if not current_requests:
+        await redis_client.expire(key, 60)
 
 class RoleChecker:
     def __init__(self, allowed_roles: list[RoleEnum]):

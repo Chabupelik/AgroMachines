@@ -5,6 +5,7 @@ import html
 class LeadCreateRequest(BaseModel):
     client_name: str
     client_phone: str
+    captcha_token: str
 
     @field_validator("client_name")
     def sanitize_name(cls, value: str) -> str:

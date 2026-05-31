@@ -1,5 +1,6 @@
 from fastapi import HTTPException, status
 from fastapi import BackgroundTasks
+import uuid
 from app.workers.telegram_tasks import task_notify_new_lead
 from app.repositories.lead_repo import LeadRepository
 from app.repositories.audit_repo import AuditRepository
@@ -62,3 +63,39 @@ class LeadService:
             return "NOT_FOUND"
             
         return "ALREADY_TAKEN"
+    
+    async def get_all_leads(self) -> list[Lead]:
+        return await self.lead_repo.get_all_descending()
+
+    async def update_lead_status(self, lead_id: int, new_status: str, user_id: uuid.UUID) -> Lead:
+        lead = await self.lead_repo.get_by_id(lead_id)
+        if not lead:
+            raise HTTPException(status_code=404, detail="Заявка не найдена")
+
+        old_status = lead.status
+        lead.status = new_status
+        
+        await self.lead_repo.session.commit()
+        await self.lead_repo.session.refresh(lead)
+
+        await self.audit_repo.log_action(
+            action=f"CHANGE_STATUS_FROM_{old_status}_TO_{new_status}",
+            entity_type="lead",
+            entity_id=lead_id,
+            user_id=user_id
+        )
+        return lead
+
+    async def delete_lead(self, lead_id: int, user_id: uuid.UUID):
+        lead = await self.lead_repo.get_by_id(lead_id)
+        if not lead:
+            raise HTTPException(status_code=404, detail="Заявка не найдена")
+
+        await self.lead_repo.delete(lead)
+
+        await self.audit_repo.log_action(
+            action="DELETE_LEAD",
+            entity_type="lead",
+            entity_id=lead_id,
+            user_id=user_id
+        )

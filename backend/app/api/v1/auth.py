@@ -8,6 +8,7 @@ from app.schemas.auth.requests import LoginRequest
 from app.schemas.auth.responses import TokenResponse
 from app.repositories.user_repo import UserRepository
 from app.services.auth_srv import AuthService
+from app.api.dependencies import rate_limiter
 from fastapi.security import OAuth2PasswordRequestForm
 
 router = APIRouter()
@@ -15,7 +16,7 @@ router = APIRouter()
 def get_auth_service(db: AsyncSession = Depends(get_db)) -> AuthService:
     return AuthService(UserRepository(db))
 
-@router.post("/login", response_model=TokenResponse)
+@router.post("/login", response_model=TokenResponse, dependencies=[Depends(rate_limiter)])
 async def login(
     response: Response, 
     form_data: OAuth2PasswordRequestForm = Depends(),

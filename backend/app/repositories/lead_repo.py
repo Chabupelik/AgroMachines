@@ -28,5 +28,9 @@ class LeadRepository(BaseRepository[Lead]):
         result = await self.session.execute(query)
         await self.session.commit()
         
-        # rowcount вернет 1, если строка реально обновилась, и 0, если статус уже был изменен
         return result.rowcount > 0
+    
+    async def get_all_descending(self) -> list[Lead]:
+        query = select(self.model).order_by(self.model.created_at.desc())
+        result = await self.session.execute(query)
+        return result.scalars().all()
