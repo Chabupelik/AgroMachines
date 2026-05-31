@@ -11,6 +11,7 @@ from app.core.config import settings
 from app.db.database import engine
 from app.db.redis import redis_client
 from app.api.v1.leads import router as leads_router
+from app.api.v1.auth import router as auth_router
 from sqlalchemy import text
 
 @asynccontextmanager
@@ -61,7 +62,6 @@ app.add_middleware(
 
 @app.middleware("http")
 async def log_requests_middleware(request: Request, call_next):
-    """Мидлварь логирования: замеряет время обработки запроса и пишет красивый лог"""
     start_time = time.time()
     
     response: Response = await call_next(request)
@@ -74,7 +74,6 @@ async def log_requests_middleware(request: Request, call_next):
 
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
-    """Перехватывает стандартные HTTPException и возвращает красивый JSON"""
     return JSONResponse(
         status_code=exc.status_code,
         content={"status": "error", "message": exc.detail}
@@ -82,7 +81,6 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
-    """Перехватывает ошибки валидации Pydantic и делает из них читабельный список ошибок"""
     errors = []
     for error in exc.errors():
         loc = " -> ".join(str(x) for x in error["loc"])
@@ -103,6 +101,7 @@ async def global_exception_handler(request: Request, exc: Exception):
 
 
 app.include_router(leads_router, prefix="/api/v1/leads", tags=["Leads"])
+app.include_router(auth_router, prefix="/api/v1/auth", tags=["Auth"])
 
 
 @app.get("/health")
