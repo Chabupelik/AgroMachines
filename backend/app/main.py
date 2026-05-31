@@ -1,5 +1,6 @@
 import sys
 import time
+import logging  # <-- ИСПРАВЛЕНО: Импортируем стандартный модуль логирования
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Response, status, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -17,15 +18,25 @@ from app.api.v1.auth import router as auth_router
 from app.api.v1.machines import router as machines_router
 from app.schemas.common import ResponseOK, ResponseError
 
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    datefmt="%Y-%m-%d %H:%M:%S",
+    handlers=[
+        logging.StreamHandler(sys.stdout)
+    ]
+)
+logger = logging.getLogger("agroprom_api")
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
         async with engine.begin() as conn:
             await conn.execute(text("SELECT 1"))
         await redis_client.ping()
-        print("🚀 [STARTUP] Database and Redis connections established successfully.")
+        logger.info("🚀 Database and Redis connections established successfully.")
     except Exception as e:
-        print(f"❌ [STARTUP] Connection check failed: {e}", file=sys.stderr)
+        logger.error(f"❌ Connection check failed: {e}")
         sys.exit(1)
         
     yield
@@ -33,10 +44,9 @@ async def lifespan(app: FastAPI):
     try:
         await engine.dispose()
         await redis_client.close()
-        print("💤 [SHUTDOWN] Database and Redis connections closed cleanly.")
+        logger.info("💤 Database and Redis connections closed cleanly.")
     except Exception as e:
-        print(f"❌ [SHUTDOWN] Error during connection teardown: {e}", file=sys.stderr)
-
+        logger.error(f"❌ Error during connection teardown: {e}")
 
 app = FastAPI(
     title=settings.PROJECT_NAME,
@@ -51,9 +61,7 @@ app = FastAPI(
 origins = [
     "http://localhost:5173",
     "http://127.0.0.1:5173",
-    "https://chabupelik.su",
-    "https://watcher.chabupelik.su",   
-    "https://predator.chabupelik.su",  
+    "https://agromachines.chabupelik.su"
 ]
 
 app.add_middleware(
@@ -69,9 +77,10 @@ async def log_requests_middleware(request: Request, call_next):
     start_time = time.time()
     response: Response = await call_next(request)
     process_time_ms = (time.time() - start_time) * 1000
-    print(f"📡 [API LOG] {request.client.host} - \"{request.method} {request.url.path}\" {response.status_code} ({process_time_ms:.2f}ms)")
+    
+    logger.info(f"📡 {request.client.host} - \"{request.method} {request.url.path}\" {response.status_code} ({process_time_ms:.2f}ms)")
+    
     return response
-
 
 @app.exception_handler(StarletteHTTPException)
 async def http_exception_handler(request: Request, exc: StarletteHTTPException):
@@ -99,15 +108,16 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    print(f"💥 [CRITICAL ERROR] {request.method} {request.url.path}: {exc}", file=sys.stderr)
+    logger.error(f"💥 {request.method} {request.url.path}: {exc}")
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={"status": "error", "message": "Внутренняя ошибка сервера. Пожалуйста, попробуйте позже."}
     )
 
+
+
 @app.get("/health", response_model=ResponseOK[dict], summary="Проверка жизнеспособности процесса (Liveness)")
 async def health_check():
-    """Просто проверяет, что процесс FastAPI жив и отвечает на запросы"""
     return ResponseOK(data={"message": "API is alive"})
 
 
@@ -118,7 +128,7 @@ async def ready_check(db: AsyncSession = Depends(get_db)):
         await redis_client.ping()
         return ResponseOK(data={"postgres": "connected", "redis": "connected"})
     except Exception as e:
-        print(f"❌ [READY CHECK FAILED]: {e}", file=sys.stderr)
+        logger.error(f"❌ [READY CHECK FAILED]: {e}")
         return JSONResponse(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             content={"status": "error", "message": "Система не готова к работе: База данных или Redis недоступны"}
