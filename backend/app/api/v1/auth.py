@@ -7,7 +7,7 @@ from app.core.config import settings
 from app.schemas.auth.requests import LoginRequest
 from app.schemas.auth.responses import TokenResponse
 from app.repositories.user_repo import UserRepository
-from AgroMachines.backend.app.services.auth_service import AuthService
+from app.services.auth_service import AuthService
 from app.api.dependencies import rate_limiter
 from fastapi.security import OAuth2PasswordRequestForm
 
