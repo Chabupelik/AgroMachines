@@ -406,7 +406,13 @@ lead → service → telegram → update
 
 ---
 
-# 📖 Шпаргалка разработчика v2.0 (AgroMachines API)
+Конечно! Внес эти две полезные команды в раздел **Git**, а также исправил имя контейнера на твое реальное (`agromachines_app` вместо старого `agroprom_app`) в разделе **Alembic**, чтобы все команды из шпаргалки копировались и работали без единой ошибки.
+
+Вот твоя обновленная, полностью укомплектованная методичка:
+
+---
+
+# 📖 Шпаргалка разработчика v2.1 (AgroMachines API)
 
 ## 🐳 Управление Docker (Сервер)
 Команды запускаются в корне папки бэкенда (там, где лежит `docker-compose.yml`).
@@ -418,7 +424,7 @@ lead → service → telegram → update
 *   `docker-compose down`
     *   **Зачем:** Остановить и удалить все контейнеры (данные в БД при этом не сотрутся).
 *   `docker-compose logs -f agromachines_app`
-    *   **Зачем:** Смотреть логи (вывод принтов и ошибок) нашего FastAPI в реальном времени. Нажми `Ctrl + C` для выхода.
+    *   **Зачем:** Смотреть логи (вывод питоновских принтов, логов и ошибок) нашего FastAPI в реальном времени. Нажми `Ctrl + C` для выхода.
 
 ---
 
@@ -430,7 +436,7 @@ lead → service → telegram → update
 *   `SELECT * FROM leads;` — Посмотреть все заявки на обратный звонок.
 *   `SELECT * FROM audit_logs;` — Посмотреть журнал действий системы.
 *   `SELECT * FROM users;` — Посмотреть список администраторов.
-*   `INSERT INTO users (id, username, password_hash, role, is_active) VALUES (gen_random_uuid(), 'admin', 'ХЭШ_ПАРОЛЯ', 'SUPERADMIN', true);` — Создать супер-администратора с автогенерацией UUID.
+*   `INSERT INTO users (id, username, password_hash, role, is_active) VALUES (gen_random_uuid(), 'admin', 'ХЭШ_ПАРОЛЯ', 'SUPERADMIN', true);` — Создать супер-администратора с автогенерацией UUID СУБД.
 *   `\q` — Выйти из консоли PostgreSQL обратно в консоль сервера.
 
 ---
@@ -438,20 +444,26 @@ lead → service → telegram → update
 ## 📐 Миграции базы данных (Alembic)
 *   `docker exec -it agromachines_app alembic revision --autogenerate -m "описание_изменений"`
     *   **Зачем:** Сравнить твои Python-модели из `models/` с реальной базой данных и создать файл миграции.
-*   `docker exec -it agroprom_app alembic upgrade head`
+*   `docker exec -it agromachines_app alembic upgrade head`
     *   **Зачем:** Применить новые миграции (физически создать таблицы/колонки в Postgres).
+*   `docker exec -it agromachines_app alembic downgrade -1`
+    *   **Зачем:** Откатить последнюю примененную миграцию на один шаг назад.
 
 ---
 
-## 🐙 Работа с Git (Синхронизация)
+## 🐙 Работа с Git (Синхронизация и исправление ошибок)
 *   `git pull origin main` — Скачать последние изменения с GitHub на сервер (или на ПК).
 *   `git add .` -> `git commit -m "сообщение"` -> `git push` — Стандартный цикл отправки твоего кода в облако.
+*   `git commit --amend -m "новое_сообщение"`
+    *   **Зачем:** Быстро переименовать сообщение самого последнего (локального) коммита, если допустил опечатку.
+*   `git push origin main --force`
+    *   **Зачем:** Принудительно протолкнуть изменения на GitHub (использовать для перезаписи истории, например, после `--amend`, если кривой коммит уже успел улететь в облако). *Безопасно только при одиночной разработке в приватной ветке!*
 
 ---
 
 ## 🔒 MinIO (Локальное S3 хранилище)
 Если нужно настроить бакет через консоль без веб-панели:
-*   `docker exec -it agroprom_minio mc alias set local http://localhost:9000 ТВОЙ_ACCESS_KEY ТВОЙ_SECRET_KEY` — Авторизовать консольную утилиту внутри докера.
-*   `docker exec -it agroprom_minio mc anonymous set download local/agroprom-media` — Сделать бакет публичным для чтения картинок.
+*   `docker exec -it agroprom_minio mc alias set local http://localhost:9000 ТВОЙ_ACCESS_KEY ТВОЙ_SECRET_KEY` — Авторизовать консольную утилиту внутри докера под твоими доступами из `.env`.
+*   `docker exec -it agroprom_minio mc anonymous set download local/agroprom-media` — Сделать бакет публичным для чтения картинок без паролей.
 
 ***
