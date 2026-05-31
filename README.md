@@ -159,7 +159,6 @@ project_root/
     │   ├── __init__.py
     │   ├── config.py           # Класс Settings(BaseSettings) для парсинга .env
     │   ├── security.py         # Функции: hash_password(Argon2), verify_password, create_jwt_token
-    │   └── exceptions.py       # Кастомные ошибки: EntityNotFoundException, LeadAlreadyExists
     │
     ├── db/                     # ИНФРАСТРУКТУРА ДАННЫХ (Подключения)
     │   ├── __init__.py
