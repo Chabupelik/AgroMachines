@@ -37,7 +37,7 @@ app = FastAPI(
     version=settings.VERSION,
     openapi_url="/openapi.json" if settings.SHOW_DOCS else None,
     docs_url="/docs" if settings.SHOW_DOCS else None,
-    redoc_url="/redoc" if settings.SHOW_DOCS else None,
+    redoc_url=None,
     lifespan=lifespan,
 )
 
