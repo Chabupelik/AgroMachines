@@ -1,7 +1,7 @@
 services:
   db:
     image: postgres:16-alpine
-    container_name: agroprom_db
+    container_name: agromachines_db
     restart: always
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
@@ -18,7 +18,7 @@ services:
   # 2. Redis
   redis:
     image: redis:7-alpine
-    container_name: agroprom_redis
+    container_name: agromachines_redis
     restart: always
     command: redis-server --save 60 1 --loglevel warning
     volumes:
@@ -31,7 +31,7 @@ services:
 
   minio:
     image: minio/minio:latest
-    container_name: agroprom_minio
+    container_name: agromachines_minio
     restart: always
     entrypoint: sh
     command: -c "minio server /data"
@@ -51,7 +51,7 @@ services:
 
   app:
     build: .
-    container_name: agroprom_app
+    container_name: agromachines_app
     restart: always
     ports:
       - "127.0.0.1:8000:8000"
