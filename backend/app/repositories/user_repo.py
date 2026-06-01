@@ -11,3 +11,8 @@ class UserRepository(BaseRepository[User]):
         query = select(self.model).where(self.model.username == username)
         result = await self.session.execute(query)
         return result.scalar_one_or_none()
+    
+    async def get_all_users(self) -> list[User]:
+        query = select(self.model).order_by(self.model.username)
+        result = await self.session.execute(query)
+        return result.scalars().all()

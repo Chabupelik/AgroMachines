@@ -18,6 +18,7 @@ class Lead(Base):
     status: Mapped[LeadStatus] = mapped_column(Enum(LeadStatus, name="lead_status_enum"), default=LeadStatus.NEW)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
+    processed_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     __table_args__ = (
         Index(

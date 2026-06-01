@@ -459,7 +459,16 @@ MINIO_BUCKET_NAME=agroprom-media
 *   `SELECT * FROM leads;` — Посмотреть все заявки на обратный звонок.
 *   `SELECT * FROM audit_logs;` — Посмотреть журнал действий системы.
 *   `SELECT * FROM users;` — Посмотреть список администраторов.
-*   `INSERT INTO users (id, username, password_hash, role, is_active) VALUES (gen_random_uuid(), 'admin', 'ХЭШ_ПАРОЛЯ', 'SUPERADMIN', true);` — Создать супер-администратора с автогенерацией UUID СУБД.
+
+*   `docker exec -it agromachines_app python -c "from app.core.security import hash_password; print(hash_password('ТВОЙ_ПАРОЛЬ'))"`
+    *   **Зачем:** Быстро сгенерировать криптостойкий хэш Argon2id для пароля прямо на сервере (нужно для ручного занесения первого суперадмина в БД).
+
+*   `INSERT INTO users (id, username, password_hash, role, is_active) VALUES (gen_random_uuid(), 'admin', 'ТУТ_СГЕНЕРИРОВАННЫЙ_ХЭШ', 'SUPERADMIN', true);` 
+    *   **Зачем:** Создать супер-администратора вручную в СУБД с автогенерацией UUID СУБД.
+
+*   `DELETE FROM users WHERE username = 'логин';`
+    *   **Зачем:** Удалить пользователя (администратора) из базы данных по его логину.
+
 *   `\q` — Выйти из консоли PostgreSQL обратно в консоль сервера.
 
 ---

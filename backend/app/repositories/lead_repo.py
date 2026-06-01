@@ -18,12 +18,18 @@ class LeadRepository(BaseRepository[Lead]):
         result = await self.session.execute(query)
         return result.scalar_one_or_none()
     
-    async def atomic_update_status(self, lead_id: int, old_status: LeadStatus, new_status: LeadStatus) -> bool:
+    async def atomic_update_status(self, lead_id: int, old_status: LeadStatus, new_status: LeadStatus, processed_by: str | None = None) -> bool:
+        from sqlalchemy import update
+        from datetime import datetime, timezone
 
         query = (
             update(self.model)
             .where(self.model.id == lead_id, self.model.status == old_status)
-            .values(status=new_status, updated_at=datetime.now(timezone.utc))
+            .values(
+                status=new_status, 
+                processed_by=processed_by, # <-- Записываем имя менеджера
+                updated_at=datetime.now(timezone.utc)
+            )
         )
         result = await self.session.execute(query)
         await self.session.commit()

@@ -8,5 +8,6 @@ class LeadResponse(BaseModel):
     client_phone: str
     status: LeadStatus
     created_at: datetime
+    processed_by: str | None
     
     model_config = ConfigDict(from_attributes=True)

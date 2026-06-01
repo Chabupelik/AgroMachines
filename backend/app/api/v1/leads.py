@@ -61,7 +61,7 @@ async def get_leads(
 
 @router.put(
     "/{lead_id}",
-    response_model=LeadResponse,
+    response_model=ResponseOK[LeadResponse],
     summary="Изменить статус заявки (Только Админ/Менеджер)"
 )
 async def update_lead_status(
@@ -70,7 +70,7 @@ async def update_lead_status(
     lead_service: LeadService = Depends(get_lead_service),
     current_user: User = Depends(require_manager)
 ):
-    return await lead_service.update_lead_status(lead_id, new_status, current_user.id)
+    return await lead_service.update_lead_status(lead_id, new_status, current_user.username, current_user.id)
 
 
 @router.delete(

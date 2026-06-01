@@ -41,12 +41,15 @@ class LeadService:
         )
 
         return saved_lead
+    
     async def take_lead_from_tg(self, lead_id: int, tg_username: str) -> str:
+        from app.models.lead import LeadStatus
 
         success = await self.lead_repo.atomic_update_status(
             lead_id=lead_id,
             old_status=LeadStatus.NEW,
-            new_status=LeadStatus.IN_PROGRESS
+            new_status=LeadStatus.IN_PROGRESS,
+            processed_by=f"@{tg_username}"
         )
         
         if success:
@@ -67,7 +70,9 @@ class LeadService:
     async def get_all_leads(self) -> list[Lead]:
         return await self.lead_repo.get_all_descending()
 
-    async def update_lead_status(self, lead_id: int, new_status: str, user_id: uuid.UUID) -> Lead:
+    async def update_lead_status(self, lead_id: int, new_status: str, admin_username: str, user_id: uuid.UUID) -> Lead:
+        from app.models.lead import LeadStatus
+
         lead = await self.lead_repo.get_by_id(lead_id)
         if not lead:
             raise HTTPException(status_code=404, detail="Заявка не найдена")
@@ -75,6 +80,11 @@ class LeadService:
         old_status = lead.status
         lead.status = new_status
         
+        if new_status == LeadStatus.IN_PROGRESS:
+            lead.processed_by = admin_username
+        elif new_status == LeadStatus.NEW:
+            lead.processed_by = None
+
         await self.lead_repo.session.commit()
         await self.lead_repo.session.refresh(lead)
 
