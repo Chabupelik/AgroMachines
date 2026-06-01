@@ -1,4 +1,6 @@
 import uuid
+from typing import Optional
+from sqlalchemy import select, func
 from app.repositories.base import BaseRepository
 from app.models.audit import AuditLog
 
@@ -14,3 +16,42 @@ class AuditRepository(BaseRepository[AuditLog]):
             entity_id=entity_id
         )
         return await self.add(log)
+
+    async def get_filtered_logs(
+        self, 
+        limit: int = 20, 
+        offset: int = 0, 
+        user_id: Optional[uuid.UUID] = None, 
+        action: Optional[str] = None, 
+        entity_type: Optional[str] = None
+    ) -> list[AuditLog]:
+        query = select(self.model).order_by(self.model.timestamp.desc())
+
+        if user_id:
+            query = query.where(self.model.user_id == user_id)
+        if action:
+            query = query.where(self.model.action == action)
+        if entity_type:
+            query = query.where(self.model.entity_type == entity_type)
+
+        query = query.limit(limit).offset(offset)
+        result = await self.session.execute(query)
+        return result.scalars().all()
+
+    async def count_filtered_logs(
+        self, 
+        user_id: Optional[uuid.UUID] = None, 
+        action: Optional[str] = None, 
+        entity_type: Optional[str] = None
+    ) -> int:
+        query = select(func.count()).select_from(self.model)
+
+        if user_id:
+            query = query.where(self.model.user_id == user_id)
+        if action:
+            query = query.where(self.model.action == action)
+        if entity_type:
+            query = query.where(self.model.entity_type == entity_type)
+
+        result = await self.session.execute(query)
+        return result.scalar_one()

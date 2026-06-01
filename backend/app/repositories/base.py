@@ -1,7 +1,7 @@
 import uuid
 from typing import Generic, TypeVar, Type, Optional
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from app.models.base import Base
 
 ModelType = TypeVar("ModelType", bound=Base)
@@ -25,3 +25,8 @@ class BaseRepository(Generic[ModelType]):
     async def delete(self, obj: ModelType) -> None:
         await self.session.delete(obj)
         await self.session.commit()
+        
+    async def count(self) -> int:
+        query = select(func.count()).select_from(self.model)
+        result = await self.session.execute(query)
+        return result.scalar_one()

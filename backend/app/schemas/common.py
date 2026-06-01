@@ -11,3 +11,10 @@ class ResponseError(BaseModel):
     status: str = "error"
     message: str
     details: Any | None = None
+    
+class PaginatedResponse(BaseModel, Generic[T]):
+    status: str = "ok"
+    total: int
+    limit: int
+    offset: int
+    data: list[T] 

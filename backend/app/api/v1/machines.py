@@ -9,6 +9,7 @@ from app.integrations.storage.minio_client import MinioClient
 from app.services.machine_service import MachineService
 from app.schemas.machine.requests import MachineCreateRequest, MachineUpdateRequest
 from app.schemas.machine.responses import MachineResponse
+from app.schemas.common import PaginatedResponse
 from app.api.dependencies import require_editor 
 from app.models.user import User
 
@@ -21,10 +22,16 @@ def get_machine_service(db: AsyncSession = Depends(get_db)) -> MachineService:
         storage_client=MinioClient()
     )
 
-@router.get("/", response_model=list[MachineResponse], summary="Получить список всей техники (Открыто для всех)")
-async def get_machines(db: AsyncSession = Depends(get_db)):
+@router.get("/", response_model=PaginatedResponse[MachineResponse], summary="Получить список всей техники (Открыто для всех)")
+async def get_machines(
+    limit: int = 10,
+    offset: int = 0,
+    db: AsyncSession = Depends(get_db)
+):
     machine_repo = MachineRepository(db)
-    return await machine_repo.get_all_descending()
+    machines = await machine_repo.get_all_descending(limit, offset)
+    total = await machine_repo.count()
+    return PaginatedResponse(total=total, limit=limit, offset=offset, data=machines)
 
 
 @router.post("/", response_model=MachineResponse, status_code=status.HTTP_201_CREATED, summary="Создать карточку техники (Только Админ/Редактор)")

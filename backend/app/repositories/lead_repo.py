@@ -36,7 +36,7 @@ class LeadRepository(BaseRepository[Lead]):
         
         return result.rowcount > 0
     
-    async def get_all_descending(self) -> list[Lead]:
-        query = select(self.model).order_by(self.model.created_at.desc())
+    async def get_all_descending(self, limit: int = 10, offset: int = 0) -> list[Lead]:
+        query = select(self.model).order_by(self.model.created_at.desc()).limit(limit).offset(offset)
         result = await self.session.execute(query)
         return result.scalars().all()

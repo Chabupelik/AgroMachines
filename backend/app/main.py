@@ -16,6 +16,7 @@ from app.db.redis import redis_client
 from app.api.v1.leads import router as leads_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.machines import router as machines_router
+from app.api.v1.audit import router as audit_router
 from app.schemas.common import ResponseOK, ResponseError
 
 logging.basicConfig(
@@ -138,3 +139,4 @@ async def ready_check(db: AsyncSession = Depends(get_db)):
 app.include_router(leads_router, prefix="/api/v1/leads", tags=["Leads"])
 app.include_router(auth_router, prefix="/api/v1/auth", tags=["Auth"])
 app.include_router(machines_router, prefix="/api/v1/machines", tags=["Machines"])
+app.include_router(audit_router, prefix="/api/v1/audit", tags=["Audit Logs"])

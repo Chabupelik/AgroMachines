@@ -67,8 +67,10 @@ class LeadService:
             
         return "ALREADY_TAKEN"
     
-    async def get_all_leads(self) -> list[Lead]:
-        return await self.lead_repo.get_all_descending()
+    async def get_all_leads(self, limit: int, offset: int):
+        leads = await self.lead_repo.get_all_descending(limit, offset)
+        total = await self.lead_repo.count()
+        return leads, total
 
     async def update_lead_status(self, lead_id: int, new_status: str, admin_username: str, user_id: uuid.UUID) -> Lead:
         from app.models.lead import LeadStatus

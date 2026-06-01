@@ -133,19 +133,20 @@
 ```text
 ~/AgroMachines/backend/
 ├── alembic.ini                 # Глобальный конфигурационный файл утилиты миграций Alembic
-├── backup.sh                   # Полностью динамический Bash-скрипт резервного копирования БД и MinIO
+├── backup.sh                   # Полностью динамический Bash-скрипт резервного копирования БД, волюмов MinIO и ротации логов в СУБД
 ├── docker-compose.yml          # Файл оркестрации докер-контейнеров (Postgres, Redis, MinIO, FastAPI App)
-├── Dockerfile                  # Инструкция сборки Docker-образа для нашего Python-приложения
-├── .env                        # Локальный файл переменных окружения (секреты БД, ТГ, MinIO)
+├── Dockerfile                  # Инструкция сборки Docker-образа для нашего Python-приложения (с предустановленным curl)
+├── .env                        # Локальный файл переменных окружения (секреты БД, ТГ, MinIO, Turnstile)
 ├── .gitignore                  # Исключения Git для папки бэкенда (venv, __pycache__, .env)
 ├── requirements.txt            # Список всех внешних зависимостей бэкенда (fastapi, sqlalchemy, etc.)
 │
 ├── alembic/                    # Системная директория миграций Alembic
-│   ├── env.py                  # Скрипт инициализации Alembic (настройка async-движка и метаданных)
+│   ├── env.py                  # Скрипт инициализации Alembic (настройка async-движка, путей и метаданных)
 │   ├── script.py.mako          # Шаблон-заготовка, по которому Alembic генерирует новые файлы миграций
 │   └── versions/               # Директория с физическими файлами миграций структуры БД
 │       ├── 2026_05_31_1214-400d18ebf71f_initial_tables.py       # Миграция создания таблиц users, leads, machines
-│       └── 2026_05_31_1300-1250b5a24cac_add_audit_logs_table.py  # Миграция добавления таблицы audit_logs
+│       ├── 2026_05_31_1300-1250b5a24cac_add_audit_logs_table.py  # Миграция создания таблицы журналов аудита audit_logs
+│       └── 2026_06_01_0950-f70af07f6bed_add_processed_by_to_leads.py  # Миграция добавления колонки processed_by в таблицу leads
 │
 └── app/                        # Исходный код Python-приложения FastAPI
     ├── __init__.py             # Маркер Python-пакета
@@ -153,17 +154,18 @@
     │
     ├── api/                    # Слой маршрутизации и валидации входящих HTTP-запросов (Controllers)
     │   ├── __init__.py
-    │   ├── dependencies.py     # Общие зависимости FastAPI (Depends): проверка токенов, ролей (RBAC) и RateLimit
-    │   └── v1/                 # Версия API v1 (для безопасного масштабирования в будущем)
+    │   ├── dependencies.py     # Общие зависимости FastAPI (Depends): проверка токенов, ролевой модели (RBAC) и RateLimit
+    │   └── v1/                 # Первая версия API
     │       ├── __init__.py
-    │       ├── auth.py         # Маршруты авторизации: /login, /refresh, /logout (установка HttpOnly Cookie)
-    │       ├── leads.py        # Маршруты лидов: POST / (публичный), GET /, PUT /lead_id, DELETE /lead_id (админские)
-    │       ├── machines.py     # Маршруты техники: GET / (публичный), POST /, PUT /, DELETE / (админские сrequire_editor)
+    │       ├── audit.py        # Маршруты журналов аудита: GET / (просмотр логов суперадмином с пагинацией и фильтрами)
+    │       ├── auth.py         # Маршруты авторизации и управления юзерами: /login, /refresh, /logout и закрытые CRUD-роуты /users
+    │       ├── leads.py        # Маршруты лидов: POST / (публичный), GET /, PUT /lead_id, DELETE /lead_id (админские с пагинацией)
+    │       ├── machines.py     # Маршруты техники: GET / (публичный), POST /, PUT /, DELETE / (админские с пагинацией)
     │       └── telegram.py     # Маршрут вебхука Telegram: POST /webhook (прием callback нажатий от ТГ-серверов)
     │
     ├── core/                   # Ядро конфигурации и системных утилит
     │   ├── __init__.py
-    │   ├── config.py           # Настройки Pydantic Settings (валидация .env, динамическая сборка URL баз)
+    │   ├── config.py           # Настройки Pydantic Settings (валидация .env, динамическая сборка URL баз, SHOW_DOCS)
     │   └── security.py         # Криптография: хеширование паролей Argon2id, создание JWT-токенов
     │
     ├── db/                     # Инициализация и менеджмент подключений к базам данных
@@ -175,31 +177,32 @@
     │   ├── __init__.py         # Импорт всех моделей в одном месте для обнаружения утилитой Alembic
     │   ├── base.py             # Декларативный базовый класс Base = declarative_base()
     │   ├── audit.py            # Модель AuditLog (таблица audit_logs)
-    │   ├── lead.py             # Модель Lead (таблица leads с частичным уникальным индексом)
+    │   ├── lead.py             # Модель Lead (таблица leads с частичным уникальным индексом и processed_by)
     │   ├── machine.py          # Модель Machine (таблица machines с поддержкой JSONB спецификаций)
     │   └── user.py             # Модель User (таблица users с Enum ролей)
     │
     ├── repositories/           # Репозиторный слой: инкапсуляция чистых SQL/SQLAlchemy запросов
     │   ├── __init__.py
-    │   ├── base.py             # Базовый BaseRepository с методами get_by_id, add, delete
-    │   ├── audit_repo.py       # Репозиторий AuditRepository (быстрая запись логов аудита в БД)
-    │   ├── lead_repo.py        # Репозиторий LeadRepository (атомарное обновление статусов, проверка дубликатов)
-    │   ├── machine_repo.py     # Репозиторий MachineRepository (получение техники по убыванию даты создания)
-    │   └── user_repo.py        # Репозиторий UserRepository (поиск пользователя по имени username)
+    │   ├── base.py             # Базовый BaseRepository с методами get_by_id, add (с коммитом), delete (с коммитом)
+    │   ├── audit_repo.py       # Репозиторий AuditRepository (быстрая запись логов, фильтрация логов и подсчет с кастомными фильтрами)
+    │   ├── lead_repo.py        # Репозиторий LeadRepository (атомарное обновление статусов с processed_by, проверка дубликатов)
+    │   ├── machine_repo.py     # Репозиторий MachineRepository (получение техники по убыванию даты создания с пагинацией)
+    │   └── user_repo.py        # Репозиторий UserRepository (поиск пользователя по имени и получение всех юзеров)
     │
     ├── schemas/                # Слой валидации Pydantic (DTO - Data Transfer Objects)
     │   ├── __init__.py
-    │   ├── common.py           # Общие схемы: ResponseOK, ResponseError (единый стандарт ответов API)
+    │   ├── common.py           # Общие схемы: ResponseOK, ResponseError, PaginatedResponse (универсальные форматы API)
+    │   ├── audit.py            # Схема AuditLogResponse для отдачи записей журнала аудита в админку
     │   │
     │   ├── auth/               # Схемы для модуля авторизации
     │   │   ├── __init__.py
-    │   │   ├── requests.py     # Схема LoginRequest (валидация входящих полей логина)
-    │   │   └── responses.py    # Схема TokenResponse (структура ответа с access_token и ролью)
+    │   │   ├── requests.py     # Схемы UserCreateRequest и UserUpdateRequest (схема LoginRequest убрана за ненадобностью)
+    │   │   └── responses.py    # Схемы TokenResponse и UserResponse
     │   │
     │   ├── lead/               # Схемы для модуля заявок
     │   │   ├── __init__.py
-    │   │   ├── requests.py     # Схема LeadCreateRequest (XSS-санитаризация имени, валидация телефона через phonenumbers)
-    │   │   └── responses.py    # Схема LeadResponse (структурированный вывод данных лида)
+    │   │   ├── requests.py     # Схема LeadCreateRequest (XSS-санитаризация имени, валидация телефона через phonenumbers, капча-токен)
+    │   │   └── responses.py    # Схема LeadResponse с поддержкой поля processed_by
     │   │
     │   └── machine/            # Схемы для модуля техники
     │       ├── __init__.py
@@ -208,9 +211,9 @@
     │
     ├── services/               # Сервисный слой: чистая бизнес-логика (if/else, проверки, вызовы репозиториев)
     │   ├── __init__.py
-    │   ├── audit_service.py    # Сервис ведения системного лога аудита
-    │   ├── auth_service.py     # Сервис проверки учетных данных и координации генерации JWT-сессий
-    │   ├── lead_service.py     # Сервис координации создания лида, проверки дублей, логирования и вызова ТГ-воркера
+    │   ├── audit_service.py    # Сервис ведения системного лога аудита и выборки логов с фильтрами
+    │   ├── auth_service.py     # Сервис проверки учетных данных, координации сессий, создания, обновления и удаления юзеров
+    │   ├── lead_service.py     # Сервис координации создания лида, проверки дублей, логирования, смены статусов и вызова воркера
     │   └── machine_service.py  # Сервис координации CRUD операций над техникой и загрузки/удаления фото в MinIO
     │
     └── workers/                # Слой асинхронной фоновой обработки задач
@@ -596,11 +599,9 @@ location /media/ {
 *   `proxy_buffering on / off`: Включает или выключает буферизацию ответов. Для статических картинок (`/media/`) буферизация включена для стабильного стриминга файлов, а для API (`/api/`) — выключена для моментального ответа.
 *   `proxy_cache_valid 200 24h` и `expires 24h`: Говорит Nginx сохранять (кэшировать) успешные ответы с кодом `200` на 24 часа. При повторном открытии картинки трактора Nginx отдаст ее мгновенно из своего кэша, вообще не задействуя контейнер MinIO и экономя ресурсы процессора.
 
-***
-
 ---
 
-# 🚀 DEVELOPMENT PLAN v2.1 (FINAL)
+# 🚀 DEVELOPMENT PLAN
 
 ---
 

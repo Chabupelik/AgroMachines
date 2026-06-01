@@ -7,7 +7,7 @@ from app.repositories.audit_repo import AuditRepository
 from app.services.lead_service import LeadService
 from app.schemas.lead.requests import LeadCreateRequest
 from app.schemas.lead.responses import LeadResponse
-from app.schemas.common import ResponseOK, ResponseError
+from app.schemas.common import ResponseOK, ResponseError, PaginatedResponse
 from app.integrations.captcha.turnstile import verify_turnstile_token
 from app.api.dependencies import rate_limiter, require_manager, require_superadmin
 from app.models.user import User
@@ -49,14 +49,17 @@ async def create_lead(
 
 @router.get(
     "/",
-    response_model=list[LeadResponse],
+    response_model=PaginatedResponse[LeadResponse],
     summary="Получить список всех заявок (Только Админ/Менеджер)"
 )
 async def get_leads(
+    limit: int = 10,
+    offset: int = 0,
     lead_service: LeadService = Depends(get_lead_service),
     current_user: User = Depends(require_manager)
 ):
-    return await lead_service.get_all_leads()
+    leads, total = await lead_service.get_all_leads(limit, offset)
+    return PaginatedResponse(total=total, limit=limit, offset=offset, data=leads)
 
 
 @router.put(
