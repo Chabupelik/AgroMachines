@@ -601,9 +601,7 @@ location /media/ {
 
 ---
 
-# 🚀 DEVELOPMENT PLAN
-
----
+# 🚀 ПОЭТАПНЫЙ ПЛАН РАЗРАБОТКИ (BACKEND DEVELOPMENT PLAN)
 
 ## ЭТАП 0 — ИНФРАСТРУКТУРА И СТАРТОВЫЙ СКЕЛЕТ
 
@@ -1102,9 +1100,7 @@ location /media/ {
 
 ---
 
-## 4. ПОЭТАПНЫЙ ПЛАН РАЗРАБОТКИ (FRONTEND DEVELOPMENT PLAN)
-
----
+# 🚀 ПОЭТАПНЫЙ ПЛАН РАЗРАБОТКИ (BACKEND DEVELOPMENT PLAN)
 
 ## ЭТАП 0 — ИНФРАСТРУКТУРА И СТАРТОВЫЙ СКЕЛЕТ
 
