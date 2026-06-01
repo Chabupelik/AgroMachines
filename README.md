@@ -59,6 +59,9 @@
         *   `EDITOR` (Редактор контента): Доступ только к CRUD-операциям над таблицей техники (`machines`).
         *   `MANAGER` (Менеджер по продажам): Доступ только к чтению и обновлению входящих заявок (`leads`).
     *   *Замечание для защиты:* Данная архитектура предусматривает масштабирование ролевой модели и добавление новых типов пользователей без необходимости перепроектирования схемы авторизации.
+6.  **Унифицированная пагинация и фильтрация (Аудит):**
+    *   Все списочные эндпоинты бэкенда (`GET /leads/`, `GET /machines/`, `GET /audit/`) поддерживают строгую пагинацию (параметры `limit` и `offset`). Ответы оборачиваются в универсальную схему `PaginatedResponse`, содержащую метаданные об общем числе записей (`total`) для корректной отрисовки страниц во Vue 3.
+    *   Суперадминистратору предоставлен защищенный эндпоинт `GET /api/v1/audit/` для просмотра журнала системного аудита в реальном времени с поддержкой постраничного вывода и гибких фильтров по администратору (`user_id`), типу действия (`action`) и типу измененного объекта (`entity_type`).
 
 #### В. Защита мутирующих запросов панели администратора
 Ввиду того, что административная панель представляет собой классическое веб-приложение (SPA Vue 3), от сложного алгоритма HMAC-подписи решено отказаться во избежание overengineering'а. Вместо этого безопасность обеспечивается современными веб-стандартами:
@@ -73,11 +76,53 @@
     *   **Оптимистическая блокировка лидов (Защита от гонки состояний):** Чтобы предотвратить ситуацию, когда два менеджера одновременно нажимают кнопку «Взять в работу» на одном и том же сообщении, обновление статуса заявки в СУБД производится атомарно с жестким логическим условием: `UPDATE leads SET status = 'IN_PROGRESS', updated_at = NOW() WHERE id = :id AND status = 'NEW'`. Если запрос затронул 0 строк, бэкенд фиксирует конфликт (лид уже был обработан другим сотрудником), прерывает операцию и возвращает предупреждение.
     *   **Webhook-архитектура:** Нажатие на кнопку в Telegram отправляет callback-запрос на эндпоинт бэкенда `/api/tg/webhook`. Бэкенд принимает этот запрос, обновляет статус лида в базе данных PostgreSQL и редактирует исходное сообщение в Telegram для отображения актуального статуса заявки (меняет кнопку на текст «В работе у @username»).
 
-### 1.5 Стратегия резервного копирования (Backup Strategy)
-Для обеспечения непрерывности бизнес-процессов, защиты от аппаратных сбоев на сервере и минимизации рисков потери критически важных данных в системе реализована регулярная стратегия резервного копирования:
+### 1.5 Стратегия резервного копирования и обслуживания (Backup & Maintenance)
+Для обеспечения непрерывности бизнес-процессов, защиты от аппаратных сбоев на сервере и минимизации рисков потери критически важных данных в системе реализована регулярная стратегия обслуживания:
 *   **Автоматический дамп Базы Данных (PostgreSQL):** Раз в сутки в автоматическом режиме с помощью планировщика выполняется резервное копирование структуры и данных базы данных с помощью стандартной утилиты `pg_dump` с последующим архивированием (`gzip`).
 *   **Резервное копирование медиафайлов (MinIO):** Раз в сутки запускается автоматический скрипт синхронизации медиа-бакетов MinIO (фотографии техники), обеспечивающий консистентность файлов и записей в БД.
-*   **Политика хранения и ротации:** Все созданные резервные копии шифруются и сохраняются во внешнее изолированное хранилище (например, выделенный бэкап-сервер) с глубиной хранения (Retention) от 7 до 30 дней. Это исключает риски потери данных в случае физического уничтожения основного сервера.
+*   **Автоматическая ротация логов аудита в СУБД:** Каждую ночь перед созданием бэкапа на уровне PostgreSQL выполняется автоматическая очистка таблицы логов от записей старше 90 дней (через интервальный запрос `DELETE WHERE timestamp < NOW() - INTERVAL '90 days'`). Это предохраняет диск СУБД от переполнения и оптимизирует скорость работы поисковых индексов.
+*   **Политика хранения и ротации бэкапов:** Все созданные резервные копии шифруются и сохраняются во внешнее изолированное хранилище с глубиной хранения (Retention) 30 дней.
+
+
+Ниже представлена полностью детализированная концептуальная схема базы данных. Я подробно описал **каждый столбец** во всех четырех таблицах, указав его точный тип данных, назначение и роль в бизнес-логике приложения.
+
+---
+
+### 1.6 Концептуальная схема Базы Данных (PostgreSQL)
+
+*   **Таблица `users` (Администраторы):**
+    *   `id` (UUID, primary key) — *Уникальный идентификатор пользователя в формате UUIDv4. Генерируется на стороне приложения для обеспечения максимальной криптостойкости и защиты от подбора ID перебором.*
+    *   `username` (String, unique, indexed) — *Уникальное имя пользователя (логин) для авторизации в системе. Ограничено 50 символами и проиндексировано для быстрого поиска при авторизации.*
+    *   `password_hash` (String) — *Криптографический хэш пароля администратора, сгенерированный с использованием современного алгоритма Argon2id. Прямое хранение паролей в чистом виде полностью исключено.*
+    *   `role` (Enum: `SUPERADMIN`, `EDITOR`, `MANAGER`) — *Уровень прав доступа пользователя в системе. Определяет доступ к эндпоинтам API на основе ролевой модели (RBAC).*
+    *   `is_active` (Boolean) — *Флаг активности учетной записи. Позволяет мгновенно заблокировать пользователя (отозвать сессию) без физического удаления его записи из базы данных.*
+
+*   **Таблица `machines` (Карточки сельхозтехники):**
+    *   `id` (Integer, primary key) — *Уникальный последовательный идентификатор записи в базе данных (автоинкрементный первичный ключ).*
+    *   `title` (String, indexed) — *Название модели техники (ограничено 255 символами). Проиндексировано для быстрой фильтрации и поиска в каталоге.*
+    *   `description` (Text, nullable) — *Подробное текстовое описание сельскохозяйственной техники. Поддерживает форматированный текст без ограничения по длине.*
+    *   `specifications` (JSONB) — *Набор технических характеристик техники в гибком формате JSONB (например, мощность, вес, габариты). Позволяет хранить разнородные спецификации для разных типов машин без изменения схемы СУБД.*
+    *   `price` (Numeric, nullable) — *Стоимость техники. Использует точный числовой тип данных `Numeric(10,2)` для избежания ошибок округления, свойственных числам с плавающей точкой (float).*
+    *   `image_url` (String, nullable) — *URL-адрес изображения. Вместо локального пути хранится URL-адрес объекта, проксируемый Nginx из локального MinIO бакета.*
+    *   `created_at` (DateTime) — *Дата и время создания карточки товара. Хранится с временной зоной (timezone-aware UTC) для точного ведения хронологии.*
+
+*   **Таблица `leads` (Заявки на обратный звонок):**
+    *   `id` (Integer, primary key) — *Уникальный последовательный идентификатор заявки (автоинкрементный первичный ключ).*
+    *   `client_name` (String) — *Имя клиента, оставившего заявку (ограничено 100 символами, санитаризировано от вредоносных HTML-тегов/XSS на этапе API-валидации).*
+    *   `client_phone` (String, indexed) — *Номер телефона клиента. Хранится в стандартизированном международном формате E.164 (например, +79991234567) и проиндексирован для быстрого поиска дубликатов.*
+    *   `processed_by` (String, nullable) — *Имя менеджера (например, @username), взявшего заявку в работу через Telegram или админку. Позволяет выводить имя ответственного прямо в интерфейсе Vue.*
+    *   `status` (Enum: `NEW`, `IN_PROGRESS`, `DONE`) — *Текущий статус обработки лида. Обновление статуса защищено атомарной логикой (оптимистичной блокировкой) для избежания конфликтов между менеджерами.*
+    *   `created_at` (DateTime) — *Дата и время создания заявки с временной зоной (UTC) для фиксации точного времени обращения.*
+    *   `updated_at` (DateTime) — *Дата и время последнего изменения заявки с временной зоной (UTC). Обновляется автоматически при смене статуса или назначении менеджера.*
+    *   *Ограничение уникальности СУБД:* `CREATE UNIQUE INDEX uniq_active_phone ON leads(client_phone) WHERE status IN ('NEW', 'IN_PROGRESS');` — *данный частичный индекс блокирует дублирование лидов на уровне PostgreSQL в случае параллельных запросов-гонок.*
+
+*   **Таблица `audit_logs` (Журнал аудита действий):**
+    *   `id` (Integer, primary key) — *Уникальный последовательный идентификатор записи аудита (автоинкрементный первичный ключ).*
+    *   `user_id` (UUID, foreign key, nullable) — *Внешний ключ, связывающий лог с администратором из таблицы `users`. Если действие совершено гостем или ботом — устанавливается `null`. Защищен каскадным правилом `ondelete="SET NULL"` для предотвращения нарушения целостности при удалении пользователей.*
+    *   `action` (String, indexed) — *Тип совершенного действия в системе (например, `CREATE_MACHINE`, `UPDATE_PRICE`, `CHANGE_LEAD_STATUS`). Проиндексировано для быстрой фильтрации логов в админке.*
+    *   `entity_type` (String) — *Тип измененного системного объекта, к которому относится действие (например, `lead`, `machine`).*
+    *   `entity_id` (Integer) — *Физический идентификатор (id) объекта, над которым было совершено действие.*
+    *   `timestamp` (DateTime, indexed) — *Дата и время фиксации лога с временной зоной (UTC). Проиндексировано для быстрой сортировки хронологии действий менеджеров и автоматики.*
 
 ---
 
@@ -177,13 +222,11 @@
 
 ## 3. Файлы конфигурации бэкенда (Код)
 
-Все конфигурационные файлы в корне бэкенда настроены по промышленным стандартам безопасности. Ниже представлены их точные листинги.
-
 ### 3.1 `.env` (Секретные ключи и пароли)
 ```env
 # База данных PostgreSQL
 POSTGRES_USER=agroprom_admin
-POSTGRES_PASSWORD=yK4_pL8z7XwA9WdH_rK3_mdH
+POSTGRES_PASSWORD=yK4_pL8z7XwA9WdH_rK3_mdH (для README, заменить на свой)
 POSTGRES_DB=agroprom_db
 POSTGRES_HOST=db
 POSTGRES_PORT=5432
@@ -193,7 +236,7 @@ REDIS_HOST=redis
 REDIS_PORT=6379
 
 # Безопасность и JWT
-SECRET_KEY=b2c8d28a3f8bc91cb2c8d28a3f8bc91cb2c8d28a3f8bc91cb2c8d28a3f8bc91c
+SECRET_KEY=b2c8d28a3f8bc91cb2c8d28a3f8bc91cb2c8d28a3f8bc91cb2c8d28a3f8bc91c (для README, заменить на свой)
 ALGORITHM=HS256
 ACCESS_TOKEN_EXPIRE_MINUTES=15
 REFRESH_TOKEN_EXPIRE_DAYS=7
@@ -202,19 +245,358 @@ REFRESH_TOKEN_EXPIRE_DAYS=7
 SHOW_DOCS=True
 
 # Telegram Бот
-TG_BOT_TOKEN=1234567890:AA...
-TG_CHAT_ID=-100...
-TG_WEBHOOK_SECRET=my_secure_webhook_token_999
+TG_BOT_TOKEN=1234567890:AA... (для README, заменить на свой)
+TG_CHAT_ID=-100... (для README, заменить на свой)
+TG_WEBHOOK_SECRET=my_secure_webhook_token_999 (для README, заменить на свой)
 
 # Cloudflare Turnstile
-TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA
+TURNSTILE_SECRET_KEY=1x0000000000000000000000000000000AA (Ключ для разработки, не для продакшена)
 
 # MinIO (Хранилище картинок)
 MINIO_ENDPOINT=minio:9000 
 MINIO_ACCESS_KEY=minio_admin
-MINIO_SECRET_KEY=minio_secret_password_123
+MINIO_SECRET_KEY=minio_secret_password_123 (для README, заменить на свой)
 MINIO_BUCKET_NAME=agroprom-media
 ```
+
+### 3.2 `.gitignore` (Исключения Git)
+```gitignore
+# --- Python (Бэкенд) ---
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+venv/
+.venv/
+env/
+
+# --- Секреты и настройки среды ---
+.env
+.env.*
+!.env.example
+
+# --- IDE / Редакторы ---
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# --- Системный мусор ---
+.DS_Store
+Thumbs.db
+```
+
+### 3.3 `requirements.txt` (Зависимости Python)
+```text
+# Веб-фреймворк и сервер
+fastapi==0.110.0
+uvicorn[standard]==0.28.0
+
+# Работа с базой данных (PostgreSQL)
+sqlalchemy==2.0.28
+asyncpg==0.29.0
+alembic==1.13.1
+
+# Работа с кэшем и лимитами (Redis)
+redis==5.0.3
+
+# Настройки и валидация
+pydantic==2.6.4
+pydantic-settings==2.2.1
+
+# Безопасность и авторизация
+argon2-cffi==23.1.0
+python-jose[cryptography]==3.3.0
+python-multipart==0.0.9
+
+# Валидация телефонов и HTTP-клиент
+phonenumbers==8.13.32
+httpx==0.27.0
+
+# Работа с объектным хранилищем MinIO (S3)
+boto3==1.34.69
+```
+
+### 3.4 `Dockerfile` (Инструкция сборки контейнера бэкенда)
+```dockerfile
+FROM python:3.11-slim
+
+# Отключаем буферизацию логов Python в Docker (вывод в консоль мгновенно)
+ENV PYTHONUNBUFFERED=1
+
+WORKDIR /code
+
+# Устанавливаем системные зависимости, включая curl для хелсчека
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    libpq-dev \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--no-access-log", "--proxy-headers", "--forwarded-allow-ips", "*"]
+```
+
+### 3.5 `docker-compose.yml` (Оркестрация всей бэкенд-системы)
+```yaml
+version: '3.8'
+
+services:
+  # 1. PostgreSQL (Полностью изолирован во внутренней сети докера)
+  db:
+    image: postgres:16-alpine
+    container_name: agromachines_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 2. Redis (Полностью изолирован во внутренней сети докера)
+  redis:
+    image: redis:7-alpine
+    container_name: agromachines_redis
+    restart: always
+    command: redis-server --save 60 1 --loglevel warning
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 3. MinIO (Панель 9001 полностью скрыта, API 9000 открыто на 127.0.0.1 для Nginx)
+minio:
+    image: minio/minio:latest
+    container_name: agromachines_minio
+    restart: always
+    entrypoint: sh
+    command: -c "minio server /data"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY}
+      MINIO_BROWSER: "off"
+    volumes:
+      - minio_data:/data
+    ports:
+      - "127.0.0.1:9000:9000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # 4. Наш бэкенд на FastAPI (Открыт на 127.0.0.1 для проксирования через Nginx)
+  app:
+    build: .
+    container_name: agromachines_app
+    restart: always
+    ports:
+      - "127.0.0.1:8000:8000"
+    env_file:
+      - .env
+    volumes:
+      - .:/code
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+```
+
+### 3.6 `alembic.ini` (Конфигурация миграций)
+```ini
+[alembic]
+script_location = alembic
+file_template = %%(year)d_%%(month).2d_%%(day).2d_%%(hour).2d%%(minute).2d-%%(rev)s_%%(slug)s
+sqlalchemy.url = driver://user:pass@localhost/dbname
+
+[loggers]
+keys = root,sqlalchemy,alembic
+
+[handlers]
+keys = console
+
+[formatters]
+keys = generic
+
+[logger_root]
+level = WARN
+handlers = console
+qualname =
+
+[logger_sqlalchemy]
+level = WARN
+handlers =
+qualname = sqlalchemy.engine
+
+[logger_alembic]
+level = INFO
+handlers =
+qualname = alembic
+
+[handler_console]
+class = StreamHandler
+args = (sys.stdout,)
+level = NOTSET
+formatter = generic
+
+[formatter_generic]
+format = %(levelname)-5.5s [%(name)s] %(message)s
+datefmt = %H:%M:%S
+```
+
+### 3.7 `backup.sh` (Скрипт резервного копирования в корне проекта)
+```bash
+#!/bin/bash
+
+# 1. Определяем директорию, где лежит сам скрипт (это .../AgroMachines/backend)
+SCRIPT_DIR=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" &> /dev/null && pwd)
+
+# 2. Директория проекта — на один уровень выше (это .../AgroMachines)
+PROJECT_DIR=$(dirname "$SCRIPT_DIR")
+BACKUP_DIR="$PROJECT_DIR/backups"
+DATE=$(date +%Y-%m-%d_%H%M%S)
+
+# Создаем папку для бэкапов, если её нет
+mkdir -p "$BACKUP_DIR"
+
+echo "[$(date)] === STARTING AUTOMATIC BACKUP ==="
+
+# 3. Дамп PostgreSQL в сжатый архив
+docker exec agromachines_db pg_dump -U agroprom_admin -d agroprom_db | gzip > "$BACKUP_DIR/db_$DATE.sql.gz"
+echo "[$(date)] PostgreSQL database dumped successfully."
+
+# 4. Бэкап медиафайлов MinIO
+docker run --rm \
+  -v backend_minio_data:/volume \
+  -v "$BACKUP_DIR":/backup \
+  alpine tar czf /backup/media_$DATE.tar.gz -C /volume .
+echo "[$(date)] MinIO media files backed up successfully."
+
+# 5. Автоматическая очистка логов аудита в БД (старше 90 дней)
+docker exec agromachines_db psql -U agroprom_admin -d agroprom_db -c "DELETE FROM audit_logs WHERE timestamp < NOW() - INTERVAL '90 days';"
+echo "[$(date)] Old audit logs (older than 90 days) deleted from database."
+
+# 6. Ротация бэкапов на диске (удаляем копии бэкапов старше 30 дней)
+find "$BACKUP_DIR" -type f -mtime +30 -delete
+echo "[$(date)] Old backups deleted (retained last 30 days)."
+
+echo "[$(date)] === BACKUP PROCESS COMPLETED SUCCESSFULLY ==="
+```
+
+---
+
+## 4. Конфигурация Nginx / Nginx Proxy Manager (NPM)
+
+Nginx работает как единая точка входа (API Gateway) для всей системы. Все запросы на домен (например, `agromachines.chabupelik.su`) проксируются по защищенному SSL-соединению (порт `443`), исключая прямое обращение внешних клиентов к портам Docker-контейнеров.
+
+Пример подключения собранного фронтенда через `volumes`:
+```yaml
+volumes:
+  - /home/chabupelik/AgroMachines/frontend/dist:/var/www/agroprom/frontend
+```
+
+Ниже представлен полный Nginx-конфиг для вкладки **Advanced** (Custom Nginx Configuration) в панели управления Nginx Proxy Manager:
+
+```nginx
+# 1. РАЗДАЧА СТАТИКИ ФРОНТЕНДА (Vue 3 / Vite)
+location / {
+    # Путь внутри контейнера NPM, куда примонтирована папка сборки (dist) фронтенда
+    root /var/www/agroprom/frontend;
+    index index.html;
+    
+    # КРИТИЧЕСКИ ВАЖНО ДЛЯ SPA (Vue Router):
+    # Если пользователь запрашивает конкретный URL (например, /admin или /machines), 
+    # Nginx не найдет такой папки на диске. Правило try_files велит серверу перенаправить 
+    # запрос на index.html, где Vue Router перехватит управление и сам отрисует нужную страницу.
+    # Без этого правила при перезагрузке страницы /admin пользователь будет получать ошибку 404.
+    try_files $uri $uri/ /index.html;
+    
+    # Агрессивное кэширование статических файлов сборки (JS, CSS, шрифты, иконки)
+    # Позволяет браузеру клиента сохранять файлы локально на 1 год, обеспечивая мгновенный запуск сайта при повторных визитах
+    location ~* \.(js|css|png|jpg|jpeg|gif|ico|svg|woff|woff2|ttf|eot)$ {
+        expires 1y;
+        add_header Cache-Control "public, max-age=31536000, immutable";
+        access_log off;
+    }
+}
+
+# 2. МАРШРУТ ДЛЯ API (FastAPI)
+location /api/ {
+    # Проксируем все запросы с префиксом /api/ на внутренний IP докер-хоста (порт 8000)
+    proxy_pass http://172.17.0.1:8000/api/;
+    
+    # Передача реальных заголовков клиента, чтобы FastAPI корректно логировал IP и HTTPS протокол
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    
+    # Разрешаем загрузку тяжелых файлов (картинок техники) до 50 МБ
+    client_max_body_size 50M;
+    
+    # Отключаем буферизацию для мгновенной отдачи ответов API клиенту
+    proxy_buffering off;
+}
+
+# 3. МАРШРУТ ДЛЯ КАРТИНОК (Проксирование в S3 MinIO)
+location /media/ {
+    # Скрыто перенаправляет запрос /media/photo.jpg в бакет /agroprom-media/photo.jpg на порт 9000
+    proxy_pass http://172.17.0.1:9000/agroprom-media/;
+    
+    # Специфичные заголовки для корректной авторизации S3-запросов со стороны MinIO
+    proxy_set_header Host $http_host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    
+    # Буферизация и кэширование статических изображений на уровне Nginx для снижения нагрузки на диск сервера
+    proxy_buffering on;
+    proxy_cache_valid 200 24h;
+    expires 24h;
+    add_header Cache-Control "public, no-transform";
+}
+
+```
+
+### Разбор параметров конфигурации Nginx:
+*   `proxy_pass`: Перенаправляет запрос на указанный адрес. `172.17.0.1` — это стандартный IP-адрес шлюза (docker0) хоста в Docker-окружении, что позволяет Nginx вне Docker безопасно общаться с контейнерами на localhost.
+*   `proxy_set_header`: Заменяет или добавляет заголовки HTTP-запроса перед отправкой бэкенду. 
+    *   `Host $host`: Передает оригинальный заголовок хоста (например, `api.chabupelik.su`).
+    *   `X-Real-IP $remote_addr`: Передает реальный IP-адрес посетителя сайта, а не IP-адрес самого прокси.
+    *   `X-Forwarded-For`: Передает цепочку IP-адресов, через которые прошел запрос.
+    *   `X-Forwarded-Proto $scheme`: Передает протокол (HTTP или HTTPS).
+*   `client_max_body_size 50M`: Защита от ошибок `413 Request Entity Too Large`. Позволяет Nginx пропускать файлы размером до 50 мегабайт (нужно для загрузки качественных фото сельхозтехники).
+*   `proxy_buffering on / off`: Включает или выключает буферизацию ответов. Для статических картинок (`/media/`) буферизация включена для стабильного стриминга файлов, а для API (`/api/`) — выключена для моментального ответа.
+*   `proxy_cache_valid 200 24h` и `expires 24h`: Говорит Nginx сохранять (кэшировать) успешные ответы с кодом `200` на 24 часа. При повторном открытии картинки трактора Nginx отдаст ее мгновенно из своего кэша, вообще не задействуя контейнер MinIO и экономя ресурсы процессора.
+
+***
 
 ---
 

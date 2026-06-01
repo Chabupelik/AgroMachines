@@ -19,7 +19,11 @@ docker run --rm \
   alpine tar czf /backup/media_$DATE.tar.gz -C /volume .
 echo "[$(date)] MinIO media files backed up successfully."
 
+docker exec agromachines_db psql -U agroprom_admin -d agroprom_db -c "DELETE FROM audit_logs WHERE timestamp < NOW() - INTERVAL '90 days';"
+echo "[$(date)] Old audit logs (older than 90 days) deleted from database."
+
 find "$BACKUP_DIR" -type f -mtime +30 -delete
 echo "[$(date)] Old backups deleted (retained last 30 days)."
 
 echo "[$(date)] === BACKUP PROCESS COMPLETED SUCCESSFULLY ==="
+
