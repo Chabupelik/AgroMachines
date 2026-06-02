@@ -16,7 +16,7 @@
       <nav class="hidden md:flex items-center gap-8 text-sm text-text-muted font-medium">
         <a href="#about" class="hover:text-primary transition-colors">О нас</a>
         <a href="#machines" class="hover:text-primary transition-colors">Техника</a>
-        <a href="#contact" class="hover:text-primary transition-colors">Заказ звонка</a>
+        <a href="#contact" class="hover:text-primary transition-colors">Обратный звонок</a>
       </nav>
 
       <button @click="toggleMenu" class="md:hidden text-2xl text-primary hover:text-text-main transition-colors cursor-pointer select-none">

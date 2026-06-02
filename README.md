@@ -988,10 +988,6 @@ location /media/ {
 │   ├── favicon.ico             # Иконка вкладки браузера
 │   ├── robots.txt              # Инструкции для поисковиков (Yandex, Google)
 │   ├── sitemap.xml             # Карта сайта для SEO-индексации
-│   └── images/                 # Статические картинки
-│       ├── logo.svg            # Векторный логотип компании
-│       ├── hero-bg.jpg         # Фоновое изображение для первого экрана лендинга
-│       └── placeholder.png     # Заглушка для карточек техники, у которых нет фото в БД
 │
 └── src/                        # Исходный код Vue-приложения
     ├── main.js                 # Точка входа: инициализация Vue createApp, Router, Pinia, глобальный errorHandler
@@ -1112,7 +1108,7 @@ location /media/ {
 *   `index.html` (точка входа)
 *   `package.json`, `vite.config.js`, `tailwind.config.js`
 *   `.env`, `.gitignore`
-*   `public/favicon.ico`, `public/images/logo.svg`, `public/images/hero-bg.jpg`, `public/images/placeholder.png`
+*   `public/favicon.ico`
 *   `src/main.js`, `src/App.vue`, `src/assets/tailwind.css`
 *   `src/config/index.js`
 *   `src/constants/routes.js`, `src/constants/roles.js`, `src/constants/lead-statuses.js`
