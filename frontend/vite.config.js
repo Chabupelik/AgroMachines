@@ -18,6 +18,11 @@ export default defineConfig({
         target: 'https://agromachines.chabupelik.su',
         changeOrigin: true,
         secure: true,
+      },
+      '/media': {
+        target: 'https://agromachines.chabupelik.su',
+        changeOrigin: true,
+        secure: true,
       }
     }
   },

@@ -20,7 +20,7 @@ def get_auth_service(db: AsyncSession = Depends(get_db)) -> AuthService:
     return AuthService(UserRepository(db))
 
 
-@router.post("/login", response_model=ResponseOK[TokenResponse], dependencies=[Depends(rate_limiter)])
+@router.post("/login", response_model=TokenResponse, dependencies=[Depends(rate_limiter)])
 async def login(
     response: Response, 
     form_data: OAuth2PasswordRequestForm = Depends(),
@@ -38,11 +38,12 @@ async def login(
         max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60
     )
     
-    return {"data": TokenResponse(access_token=access_token, role=user.role)}
+    return TokenResponse(access_token=access_token, role=user.role)
 
 
-@router.post("/refresh", response_model=ResponseOK[TokenResponse])
+@router.post("/refresh", response_model=TokenResponse)
 async def refresh_token(request: Request, response: Response, auth_srv: AuthService = Depends(get_auth_service)):
+    """Метод Rolling Refresh: проверяет старую куку и выдает новые токены"""
     refresh_token = request.cookies.get("refresh_token")
     if not refresh_token:
         raise HTTPException(status_code=401, detail="Токен обновления отсутствует")
@@ -58,7 +59,7 @@ async def refresh_token(request: Request, response: Response, auth_srv: AuthServ
             key="refresh_token", value=new_refresh, httponly=True, secure=True,
             samesite="strict", max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60
         )
-        return {"data": TokenResponse(access_token=new_access, role=payload["role"])}
+        return TokenResponse(access_token=new_access, role=payload["role"])
         
     except JWTError:
         raise HTTPException(status_code=401, detail="Токен недействителен или истек")

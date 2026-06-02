@@ -1,5 +1,5 @@
 <template>
-  <div class="min-h-screen bg-bg text-textMain font-sans antialiased selection:bg-accent selection:text-bg">
+  <div class="min-h-screen text-text-main font-sans antialiased selection:bg-primary selection:text-white">
     <router-view />
   </div>
 </template>

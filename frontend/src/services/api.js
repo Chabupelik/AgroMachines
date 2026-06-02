@@ -60,7 +60,7 @@ api.interceptors.response.use(
 
       try {
         const res = await axios.post(`${config.apiUrl}/api/v1/auth/refresh`, {}, { withCredentials: true })
-        const newAccess = res.data.data.access_token
+        const newAccess = res.data.access_token
         
         const payload = JSON.parse(atob(newAccess.split('.')[1]))
         authStore.setSession(newAccess, { id: payload.sub, role: payload.role })

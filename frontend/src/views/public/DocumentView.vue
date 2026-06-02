@@ -1,7 +1,9 @@
 <template>
   <PublicLayout>
-    <div class="max-w-[800px] mx-auto px-6 py-16">
-      <div v-html="compiledMarkdown" class="markdown-body"></div>
+    <div class="max-w-[850px] mx-auto px-6 py-16">
+      <div class="bg-surface border border-border/80 p-8 sm:p-12 rounded-2xl shadow-xl">
+        <div v-html="compiledMarkdown" class="markdown-body"></div>
+      </div>
     </div>
   </PublicLayout>
 </template>
@@ -10,7 +12,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { marked } from 'marked'
-import { config } from '@/config'  // Импортируем наш конфиг
+import { config } from '@/config'
 import PublicLayout from '@/layouts/PublicLayout.vue'
 
 const route = useRoute()
@@ -28,12 +30,10 @@ async function loadDocument() {
 
 const compiledMarkdown = computed(() => {
   let text = rawMarkdownText.value
-
   Object.keys(config).forEach((key) => {
     const placeholder = `{{${key}}}`
     text = text.replaceAll(placeholder, config[key])
   })
-
   return marked(text)
 })
 

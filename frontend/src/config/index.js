@@ -8,7 +8,6 @@ export const config = {
   companyAddress: import.meta.env.VITE_COMPANY_ADDRESS || "г. Москва, ул. Полевая, д. 45, офис 12",
   supportPhone: import.meta.env.VITE_SUPPORT_PHONE || "+7 (999) 000-00-00",
   supportEmail: import.meta.env.VITE_SUPPORT_EMAIL || "support@agromachines.chabupelik.su",
-  telegramLink: import.meta.env.VITE_TELEGRAM_LINK || "https://t.me/agromachines",
   policyUpdatedAt: import.meta.env.VITE_POLICY_UPDATED_AT || "02 июня 2026",
   turnstileSiteKey: import.meta.env.VITE_TURNSTILE_SITE_KEY || "1x000000000000000000001A", 
 }

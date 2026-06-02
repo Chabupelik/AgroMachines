@@ -5,12 +5,8 @@
       <div class="space-y-4">
         <router-link to="/" class="flex items-center gap-3 cursor-pointer select-none">
           <svg class="w-6 h-6 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <circle cx="18" cy="18" r="3" />
-            <circle cx="6" cy="18" r="2" />
-            <path d="M6 16h12" />
-            <path d="M8 16V10h6v6" />
-            <path d="M14 10l2 3h2v3" />
-            <path d="M10 10V8h1" />
+            <circle cx="18" cy="18" r="3" /><circle cx="6" cy="18" r="2" />
+            <path d="M6 16h12M8 16V10h6v6M14 10l2 3h2v3M10 10V8h1" />
           </svg>
           <span class="font-extrabold text-text-main tracking-[2px] uppercase text-sm">{{ config.siteName }}</span>
         </router-link>
@@ -31,7 +27,7 @@
         <div class="space-y-1.5">
           <span class="text-text-main font-bold block text-sm">Обратная связь</span>
           <div>Телефон: <a :href="`tel:${config.supportPhone}`" class="text-primary hover:underline font-mono">{{ config.supportPhone }}</a></div>
-          <div>Telegram: <a :href="config.telegramLink" target="_blank" class="text-primary hover:underline font-mono">@agromachines</a></div>
+          <div>Email: <a :href="`mailto:${config.supportEmail}`" class="text-primary hover:underline font-mono">{{ config.supportEmail }}</a></div>
         </div>
         
         <div class="flex flex-col md:items-end gap-2 border-t border-border/50 pt-4 text-xs font-medium">
@@ -47,6 +43,5 @@
 <script setup>
 import { computed } from 'vue'
 import { config } from '@/config'
-
 const currentYear = computed(() => new Date().getFullYear())
 </script>

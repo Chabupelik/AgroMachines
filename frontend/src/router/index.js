@@ -78,8 +78,22 @@ const router = createRouter({
       name: ROUTE_NAMES.NOT_FOUND,
       component: () => import('@/views/public/NotFoundView.vue')
     }
-  ]
+  ],
+  scrollBehavior(to, from, savedPosition) {
+    if (to.hash) {
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          resolve({
+            el: to.hash,
+            behavior: 'smooth'
+          })
+        }, 250)
+      })
+    }
+    return { top: 0, behavior: 'smooth' }
+  }
 })
+
 
 router.beforeEach(authGuard)
 router.beforeEach(roleGuard)

@@ -1,5 +1,13 @@
 <template>
-  <form @submit.prevent="handleSubmit" class="space-y-6 max-w-md w-full mx-auto bg-surface border border-border/80 p-8 rounded-2xl shadow-xl">
+  <form 
+    @submit.prevent="handleSubmit" 
+    class="space-y-6 w-full mx-auto"
+    :class="[
+      flat 
+        ? 'bg-transparent border-0 p-0 shadow-none' 
+        : 'bg-surface border border-border/80 p-8 rounded-2xl shadow-xl max-w-md'
+    ]"
+  >
     <h3 class="text-lg sm:text-xl font-bold text-primary text-center uppercase tracking-wider mb-6">Заказать обратный звонок</h3>
     
     <BaseInput
@@ -57,6 +65,10 @@ const agreed = ref(false)
 const nameError = ref('')
 const phoneError = ref('')
 const toast = useToast()
+
+defineProps({
+  flat: { type: Boolean, default: false }
+})
 
 const turnstileContainer = ref(null)
 let widgetId = null
