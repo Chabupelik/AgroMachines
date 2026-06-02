@@ -5,6 +5,7 @@ from app.integrations.storage.minio_client import MinioClient
 from app.models.machine import Machine
 from app.schemas.machine.requests import MachineCreateRequest, MachineUpdateRequest
 import uuid
+import asyncio
 
 class MachineService:
     def __init__(self, machine_repo: MachineRepository, audit_repo: AuditRepository, storage_client: MinioClient):
@@ -12,18 +13,18 @@ class MachineService:
         self.audit_repo = audit_repo
         self.storage_client = storage_client
 
-    async def create_machine(self, schema: MachineCreateRequest, file: UploadFile | None, user_id: uuid.UUID) -> Machine:
-        """Создание новой карточки техники с загрузкой фото в MinIO"""
-        image_url = None
-        if file:
-            image_url = await self.storage_client.upload_file(file)
+    async def create_machine(self, schema: MachineCreateRequest, files: list[UploadFile] | None, user_id: uuid.UUID) -> Machine:
+        image_urls = []
+        if files:
+            upload_tasks = [self.storage_client.upload_file(file) for file in files]
+            image_urls = await asyncio.gather(*upload_tasks)
 
         new_machine = Machine(
             title=schema.title,
             description=schema.description,
             specifications=schema.specifications,
             price=schema.price,
-            image_url=image_url
+            image_urls=image_urls
         )
         saved_machine = await self.machine_repo.add(new_machine)
 
@@ -35,15 +36,17 @@ class MachineService:
         )
         return saved_machine
 
-    async def update_machine(self, machine_id: int, schema: MachineUpdateRequest, file: UploadFile | None, user_id: uuid.UUID) -> Machine:
+    async def update_machine(self, machine_id: int, schema: MachineUpdateRequest, files: list[UploadFile] | None, user_id: uuid.UUID) -> Machine:
         machine = await self.machine_repo.get_by_id(machine_id)
         if not machine:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Карточка техники не найдена")
 
-        if file:
-            if machine.image_url:
-                self.storage_client.delete_file(machine.image_url)
-            machine.image_url = await self.storage_client.upload_file(file)
+        if files is not None:
+            for old_url in machine.image_urls:
+                self.storage_client.delete_file(old_url)
+            
+            upload_tasks = [self.storage_client.upload_file(file) for file in files]
+            machine.image_urls = await asyncio.gather(*upload_tasks)
 
         if schema.title is not None: machine.title = schema.title
         if schema.description is not None: machine.description = schema.description
@@ -66,8 +69,8 @@ class MachineService:
         if not machine:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Карточка техники не найдена")
 
-        if machine.image_url:
-            self.storage_client.delete_file(machine.image_url)
+        for url in machine.image_urls:
+            self.storage_client.delete_file(url)
 
         await self.machine_repo.delete(machine)
 

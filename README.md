@@ -146,7 +146,8 @@
 │   └── versions/               # Директория с физическими файлами миграций структуры БД
 │       ├── 2026_05_31_1214-400d18ebf71f_initial_tables.py       # Миграция создания таблиц users, leads, machines
 │       ├── 2026_05_31_1300-1250b5a24cac_add_audit_logs_table.py  # Миграция создания таблицы журналов аудита audit_logs
-│       └── 2026_06_01_0950-f70af07f6bed_add_processed_by_to_leads.py  # Миграция добавления колонки processed_by в таблицу leads
+│       ├── 2026_06_01_0950-f70af07f6bed_add_processed_by_to_leads.py  # Миграция добавления колонки processed_by в таблицу leads
+│       └── 2026_06_02_1040-086e892b6c58_change_image_url_to_image_urls_array.py # Миграция изменения колонки image_url на image_urls_array
 │
 └── app/                        # Исходный код Python-приложения FastAPI
     ├── __init__.py             # Маркер Python-пакета

@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, status, UploadFile, File, Form, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 import json
+from typing import List
 
 from app.db.database import get_db
 from app.repositories.machine_repo import MachineRepository
@@ -40,13 +41,14 @@ async def create_machine(
     description: str | None = Form(None),
     price: float | None = Form(None),
     specifications: str = Form("{}"), 
-    file: UploadFile = File(None),
+    files: List[UploadFile] = File(default=[]),
     machine_srv: MachineService = Depends(get_machine_service),
     current_admin: User = Depends(require_editor)
 ):
     specs_dict = json.loads(specifications)
     schema = MachineCreateRequest(title=title, description=description, price=price, specifications=specs_dict)
-    return await machine_srv.create_machine(schema, file, current_admin.id)
+    valid_files = [f for f in files if f.size > 0] if files else []
+    return await machine_srv.create_machine(schema, valid_files, current_admin.id)
 
 
 @router.put("/{machine_id}", response_model=MachineResponse, summary="Обновить карточку техники (Только Админ/Редактор)")
@@ -56,13 +58,14 @@ async def update_machine(
     description: str | None = Form(None),
     price: float | None = Form(None),
     specifications: str | None = Form(None),
-    file: UploadFile = File(None),
+    files: List[UploadFile] = File(default=[]),
     machine_srv: MachineService = Depends(get_machine_service),
     current_admin: User = Depends(require_editor)
 ):
     specs_dict = json.loads(specifications) if specifications else None
     schema = MachineUpdateRequest(title=title, description=description, price=price, specifications=specs_dict)
-    return await machine_srv.update_machine(machine_id, schema, file, current_admin.id)
+    valid_files = [f for f in files if f.size > 0] if files else []
+    return await machine_srv.update_machine(machine_id, schema, valid_files, current_admin.id)
 
 
 @router.delete("/{machine_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Удалить карточку техники (Только Админ/Редактор)")
