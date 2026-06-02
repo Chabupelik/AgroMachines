@@ -523,7 +523,7 @@ Nginx работает как единая точка входа (API Gateway) �
 Пример подключения собранного фронтенда через `volumes`:
 ```yaml
 volumes:
-  - /home/chabupelik/AgroMachines/frontend/dist:/var/www/agroprom/frontend
+  - /home/chabupelik/AgroMachines/frontend/dist:/var/www/agromachines/frontend
 ```
 
 Ниже представлен полный Nginx-конфиг для вкладки **Advanced** (Custom Nginx Configuration) в панели управления Nginx Proxy Manager:
@@ -532,7 +532,7 @@ volumes:
 # 1. РАЗДАЧА СТАТИКИ ФРОНТЕНДА (Vue 3 / Vite)
 location / {
     # Путь внутри контейнера NPM, куда примонтирована папка сборки (dist) фронтенда
-    root /var/www/agroprom/frontend;
+    root /var/www/agromachines/frontend;
     index index.html;
     
     # КРИТИЧЕСКИ ВАЖНО ДЛЯ SPA (Vue Router):
