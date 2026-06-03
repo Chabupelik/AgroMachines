@@ -47,7 +47,7 @@
           </template>
 
           <template #processed_by="{ item }">
-            <span v-if="item.processed_by" class="font-bold text-accent">@{{ item.processed_by }}</span>
+            <span v-if="item.processed_by" class="font-bold text-accent">{{ item.processed_by }}</span>
             <span v-else class="text-text-muted opacity-50">—</span>
           </template>
 

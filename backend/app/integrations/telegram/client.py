@@ -37,6 +37,12 @@ async def edit_telegram_message(message_id: int, text: str, reply_markup: dict |
     async with httpx.AsyncClient() as client:
         try:
             response = await client.post(url, json=payload, timeout=10.0)
+
+            if response.status_code == 400:
+                res_data = response.json()
+                if "message is not modified" in res_data.get("description", ""):
+                    return True
+            
             return response.status_code == 200
         except Exception as e:
             print(f"❌ Connection to Telegram failed: {e}")

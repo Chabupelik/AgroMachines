@@ -1,6 +1,6 @@
 import enum
 from datetime import datetime, timezone
-from sqlalchemy import String, DateTime, Index, Enum
+from sqlalchemy import String, DateTime, Index, Enum, BigInteger
 from sqlalchemy.orm import Mapped, mapped_column
 from app.models.base import Base
 
@@ -19,6 +19,7 @@ class Lead(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc))
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     processed_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    tg_message_id: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
 
     __table_args__ = (
         Index(

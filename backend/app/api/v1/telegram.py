@@ -11,7 +11,6 @@ from app.integrations.telegram.formatters import escape_markdown_v2
 
 router = APIRouter()
 
-# Фабрика сборки сервиса
 def get_lead_service(db: AsyncSession = Depends(get_db)) -> LeadService:
     return LeadService(LeadRepository(db), AuditRepository(db))
 
@@ -41,22 +40,46 @@ async def telegram_webhook(
         if callback_data.startswith("take_lead_"):
             lead_id = int(callback_data.split("_")[2])
 
-            result = await lead_srv.take_lead_from_tg(lead_id, username)
+            try:
+                result = await lead_srv.take_lead_from_tg(lead_id, username)
+            except Exception as e:
+                result = "NOT_FOUND"
 
             safe_username = escape_markdown_v2(username)
 
+            base_text = old_text
+            for separator in ["\n\n🤝", "\n\n⚠️", "\n\n❌", "\n\n✅"]:
+                if separator in base_text:
+                    base_text = base_text.split(separator)[0]
+
             if result == "SUCCESS":
                 new_text = (
-                    f"{escape_markdown_v2(old_text)}\n\n"
+                    f"{escape_markdown_v2(base_text)}\n\n"
                     f"🤝 *Заявка взята в работу менеджером @{safe_username}*"
                 )
                 await edit_telegram_message(message_id=message_id, text=new_text, reply_markup=None)
 
             elif result == "ALREADY_TAKEN":
                 new_text = (
-                    f"{escape_markdown_v2(old_text)}\n\n"
+                    f"{escape_markdown_v2(base_text)}\n\n"
                     f"⚠️ *Ошибка: Эта заявка уже обрабатывается другим менеджером\\.*"
                 )
                 await edit_telegram_message(message_id=message_id, text=new_text, reply_markup=None)
 
+            elif result == "TG_NOT_LINKED":
+                from app.integrations.telegram.keyboards import build_lead_inline_keyboard
+                keyboard = build_lead_inline_keyboard(lead_id)
+                
+                new_text = (
+                    f"{escape_markdown_v2(base_text)}\n\n"
+                    f"⚠️ *Ошибка: Менеджер @{safe_username} не привязан к системе\\. Попросите суперадмина добавить ваш Telegram в панель управления\\.*"
+                )
+                await edit_telegram_message(message_id=message_id, text=new_text, reply_markup=keyboard)
+
+            else:  
+                new_text = (
+                    f"{escape_markdown_v2(base_text)}\n\n"
+                    f"❌ *Такой заявки больше нет в базе данных\\.*"
+                )
+                await edit_telegram_message(message_id=message_id, text=new_text, reply_markup=None)
     return {"ok": True}

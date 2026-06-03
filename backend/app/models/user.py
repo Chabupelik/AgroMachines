@@ -17,4 +17,5 @@ class User(Base):
     username: Mapped[str] = mapped_column(String(50), unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(255))
     role: Mapped[RoleEnum] = mapped_column(Enum(RoleEnum, name="role_enum"), default=RoleEnum.MANAGER)
+    telegram_username: Mapped[str | None] = mapped_column(String(100), nullable=True, unique=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)

@@ -1,5 +1,6 @@
 from pydantic import BaseModel, ConfigDict
 from uuid import UUID
+from typing import Optional
 
 from app.models.user import RoleEnum
 
@@ -13,5 +14,6 @@ class UserResponse(BaseModel):
     username: str
     role: RoleEnum
     is_active: bool
+    telegram_username: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)

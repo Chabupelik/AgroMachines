@@ -1,3 +1,4 @@
+from sqlalchemy import select
 from fastapi import HTTPException, status
 from fastapi import BackgroundTasks
 import uuid
@@ -6,6 +7,7 @@ from app.repositories.lead_repo import LeadRepository
 from app.repositories.audit_repo import AuditRepository
 from app.models.lead import Lead, LeadStatus
 from app.schemas.lead.requests import LeadCreateRequest
+from app.models.user import User
 
 class LeadService:
     def __init__(self, lead_repo: LeadRepository, audit_repo: AuditRepository):
@@ -43,13 +45,22 @@ class LeadService:
         return saved_lead
     
     async def take_lead_from_tg(self, lead_id: int, tg_username: str) -> str:
-        from app.models.lead import LeadStatus
+
+        if not tg_username:
+            return "TG_NOT_LINKED"
+
+        stmt = select(User).where(User.telegram_username == tg_username)
+        res = await self.lead_repo.session.execute(stmt)
+        user = res.scalar_one_or_none()
+
+        if not user:
+            return "TG_NOT_LINKED"
 
         success = await self.lead_repo.atomic_update_status(
             lead_id=lead_id,
             old_status=LeadStatus.NEW,
             new_status=LeadStatus.IN_PROGRESS,
-            processed_by=f"@{tg_username}"
+            processed_by=user.username
         )
         
         if success:
@@ -57,7 +68,7 @@ class LeadService:
                 action=f"TAKE_LEAD_BY_TG_@{tg_username}",
                 entity_type="lead",
                 entity_id=lead_id,
-                user_id=None
+                user_id=user.id
             )
             return "SUCCESS"
             
@@ -109,6 +120,36 @@ class LeadService:
             entity_id=lead_id,
             user_id=user_id
         )
+
+        if lead.tg_message_id:
+            from app.integrations.telegram.client import edit_telegram_message
+            from app.integrations.telegram.formatters import escape_markdown_v2
+
+            safe_name = escape_markdown_v2(lead.client_name)
+            safe_phone = escape_markdown_v2(lead.client_phone)
+            safe_username = escape_markdown_v2(admin_username)
+
+            new_text = ""
+            if new_status == LeadStatus.IN_PROGRESS:
+                new_text = (
+                    f"🔥 *ЗАЯВКА ВЗЯТА В РАБОТУ\\!*\n\n"
+                    f"👤 *Имя:* {safe_name}\n"
+                    f"📞 *Телефон:* `{safe_phone}`\n\n"
+                    f"🤝 *Заявка взята в работу через сайт менеджером @{safe_username}*"
+                )
+            elif new_status == LeadStatus.DONE:
+                new_text = (
+                    f"✅ *ЗАЯВКА ЗАВЕРШЕНА\\!*\n\n"
+                    f"👤 *Имя:* {safe_name}\n"
+                    f"📞 *Телефон:* `{safe_phone}`\n\n"
+                    f"🎉 _Обработка успешно завершена менеджером @{safe_username}_"
+                )
+
+            if new_text:
+                try:
+                    await edit_telegram_message(message_id=lead.tg_message_id, text=new_text, reply_markup=None)
+                except:
+                    pass
         return lead
 
     async def delete_lead(self, lead_id: int, user_id: uuid.UUID):

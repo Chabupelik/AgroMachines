@@ -52,6 +52,8 @@ class AuthService:
             user.role = schema.role
         if schema.is_active is not None:
             user.is_active = schema.is_active
+        if schema.telegram_username is not None:
+            user.telegram_username = schema.telegram_username
 
         await self.user_repo.session.commit()
         await self.user_repo.session.refresh(user)
