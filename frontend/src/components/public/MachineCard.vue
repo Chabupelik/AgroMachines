@@ -1,54 +1,85 @@
 <template>
-  <router-link :to="detailUrl" class="group flex flex-col bg-surface border border-border/60 rounded-2xl overflow-hidden hover:shadow-[0_15px_40px_rgba(0,0,0,0.05)] hover:-translate-y-1 transition-all duration-300">
-    
-    <div class="relative w-full aspect-[4/3] bg-bg overflow-hidden flex items-center justify-center">
+  <router-link 
+    :to="`/machines/${machine.id}-${slugify(machine.title)}`"
+    class="group relative bg-surface border border-border/50 rounded-[24px] p-4 flex flex-col gap-4 hover:shadow-xl transition-all duration-300 no-underline"
+  >
+    <div class="relative overflow-hidden rounded-[18px] aspect-[4/3] bg-bg flex items-center justify-center shrink-0">
+      
       <img 
-        v-if="machine.image_urls && machine.image_urls.length > 0" 
+        v-if="machine.image_urls?.length" 
         :src="machine.image_urls[0]" 
+        class="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105" 
         :alt="machine.title"
-        class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-      >
-      <div v-else class="text-border/50 text-6xl">
-        <svg class="w-16 h-16" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+      />
+      <div v-else class="text-border/40">
+        <svg class="w-12 h-12 stroke-current" viewBox="0 0 24 24" fill="none" stroke-width="1.5">
+          <circle cx="18" cy="18" r="3" />
+          <circle cx="6" cy="18" r="2" />
+          <path d="M6 16h12" />
+          <path d="M8 16V10h6v6" />
+          <path d="M14 10l2 3h2v3" />
+          <path d="M10 10V8h1" />
         </svg>
       </div>
+
+      <span 
+        class="absolute top-3 left-3 px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border shadow-sm z-10 select-none font-mono"
+        :class="[
+          machine.is_available 
+            ? 'bg-surface border-primary/30 text-primary' 
+            : 'bg-surface border-orange-500/30 text-orange-600'
+        ]"
+      >
+        {{ machine.is_available ? 'В наличии' : 'Под заказ' }}
+      </span>
     </div>
 
-    <div class="p-6 flex flex-col flex-grow">
-      <h3 class="font-extrabold text-text-main text-lg uppercase tracking-wider mb-2 group-hover:text-primary transition-colors line-clamp-2">
-        {{ machine.title }}
-      </h3>
+    <div class="flex-grow flex flex-col justify-between text-left">
+      <div class="space-y-1">
+        <h3 class="text-sm font-bold text-primary uppercase tracking-wider truncate group-hover:text-accent transition-colors duration-200">
+          {{ machine.title }}
+        </h3>
+        <p class="text-xs text-text-muted line-clamp-2 leading-relaxed">
+          {{ machine.description || 'Описание временно отсутствует.' }}
+        </p>
+      </div>
       
-      <div class="mt-auto pt-4 flex justify-between items-end border-t border-border/50">
-        <div>
-          <span class="block text-[10px] text-text-muted font-bold tracking-widest uppercase mb-1">Стоимость</span>
-          <span v-if="machine.price" class="text-xl font-extrabold text-accent font-mono">{{ formatPrice(machine.price) }}</span>
-          <span v-else class="text-sm font-bold text-text-muted">По запросу</span>
-        </div>
-        
-        <span class="text-primary text-xl translate-x-2 opacity-0 group-hover:translate-x-0 group-hover:opacity-100 transition-all">
-          →
+      <div class="pt-3 border-t border-border/20 flex justify-between items-center mt-3 shrink-0">
+        <span v-if="machine.price" class="text-sm font-black text-accent font-mono">
+          {{ formatPrice(machine.price) }}
         </span>
+        <span v-else class="text-[10px] font-bold text-text-muted uppercase tracking-wider font-mono">
+          По запросу
+        </span>
+
+        <div class="text-text-muted group-hover:text-accent transition-colors duration-200">
+          <svg class="w-4 h-4 transform group-hover:translate-x-0.5 transition-transform duration-200" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <line x1="5" y1="12" x2="19" y2="12"></line>
+            <polyline points="12 5 19 12 12 19"></polyline>
+          </svg>
+        </div>
       </div>
     </div>
-    
   </router-link>
 </template>
 
 <script setup>
-import { computed } from 'vue'
-
-const props = defineProps({
+defineProps({
   machine: { type: Object, required: true }
 })
 
-const detailUrl = computed(() => {
-  const slug = props.machine.title.toLowerCase().replace(/[^a-zа-я0-9]+/g, '-').replace(/(^-|-$)+/g, '')
-  return `/machines/${props.machine.id}-${slug}`
-})
+function formatPrice(val) {
+  return new Intl.NumberFormat('ru-RU').format(val) + ' ₽'
+}
 
-const formatPrice = (price) => {
-  return new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'RUB', maximumFractionDigits: 0 }).format(price)
+function slugify(text) {
+  const slug = text
+    .toString()
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, '-')
+    .replace(/[^\w\-]+/g, '')
+    .replace(/\-\-+/g, '-')
+  return slug || 'model'
 }
 </script>

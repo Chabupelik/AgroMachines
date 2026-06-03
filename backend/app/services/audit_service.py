@@ -17,6 +17,12 @@ class AuditService:
         action: Optional[str] = None, 
         entity_type: Optional[str] = None
     ):
-        logs = await self.audit_repo.get_filtered_logs(limit, offset, user_id, action, entity_type)
+        logs_with_users = await self.audit_repo.get_filtered_logs(limit, offset, user_id, action, entity_type)
         total = await self.audit_repo.count_filtered_logs(user_id, action, entity_type)
-        return logs, total
+        
+        final_logs = []
+        for log, username in logs_with_users:
+            log.username = username
+            final_logs.append(log)
+            
+        return final_logs, total

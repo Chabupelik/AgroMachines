@@ -2,11 +2,10 @@ from fastapi import HTTPException, status
 from datetime import timedelta
 from uuid import UUID
 from app.core.config import settings
-from app.core.security import verify_password, create_jwt_token
+from app.core.security import verify_password, create_jwt_token, hash_password
 from app.repositories.user_repo import UserRepository
-from app.models.user import User
+from app.models.user import User, RoleEnum
 from app.schemas.auth.requests import UserCreateRequest, UserUpdateRequest
-from app.core.security import hash_password
 
 class AuthService:
     def __init__(self, user_repo: UserRepository):
@@ -31,29 +30,64 @@ class AuthService:
 
         return access_token, refresh_token
     
+
     async def create_user(self, schema: UserCreateRequest) -> User:
+        if schema.role == RoleEnum.SUPERADMIN:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Назначение роли суперадминистратора через интерфейс запрещено."
+            )
+
         existing_user = await self.user_repo.get_by_username(schema.username)
         if existing_user:
             raise HTTPException(status_code=400, detail="Пользователь с таким именем уже существует")
         
+        tg_username = schema.telegram_username.strip() if schema.telegram_username else None
+        if not tg_username:
+            tg_username = None
+
         new_user = User(
             username=schema.username,
             password_hash=hash_password(schema.password),
-            role=schema.role
+            role=schema.role,
+            telegram_username=tg_username
         )
         return await self.user_repo.add(new_user)
     
-    async def update_user(self, user_id: UUID, schema: UserUpdateRequest) -> User:
+    async def update_user(self, user_id: UUID, schema: UserUpdateRequest, current_user_id: UUID) -> User:
         user = await self.user_repo.get_by_id(user_id)
         if not user:
             raise HTTPException(status_code=404, detail="Пользователь не найден")
 
-        if schema.role is not None:
-            user.role = schema.role
+        if user.role == RoleEnum.SUPERADMIN and user.id != current_user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Вы не можете редактировать профиль другого суперадминистратора."
+            )
+
+        if schema.role is not None and schema.role == RoleEnum.SUPERADMIN:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Назначение роли суперадминистратора через интерфейс запрещено."
+            )
+
+        if user.id == current_user_id and schema.role is not None and schema.role != RoleEnum.SUPERADMIN:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Вы не можете забрать роль суперадминистратора у самого себя."
+            )
+
         if schema.is_active is not None:
             user.is_active = schema.is_active
+        if schema.role is not None:
+            user.role = schema.role
+
         if schema.telegram_username is not None:
-            user.telegram_username = schema.telegram_username
+            tg_username = schema.telegram_username.strip()
+            user.telegram_username = tg_username if tg_username else None
+
+        if hasattr(schema, "password") and schema.password is not None and schema.password.strip():
+            user.password_hash = hash_password(schema.password)
 
         await self.user_repo.session.commit()
         await self.user_repo.session.refresh(user)
@@ -69,6 +103,12 @@ class AuthService:
         user = await self.user_repo.get_by_id(user_id)
         if not user:
             raise HTTPException(status_code=404, detail="Пользователь не найден")
+
+        if user.role == RoleEnum.SUPERADMIN:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Вы не можете удалить другого суперадминистратора."
+            )
 
         await self.user_repo.delete(user)
         

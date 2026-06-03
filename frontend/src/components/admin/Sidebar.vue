@@ -20,7 +20,7 @@
           </svg>
           <span class="font-black text-[#f0f4f8] tracking-[2px] uppercase text-sm">AgroPanel</span>
         </div>
-        <button @click="$emit('close')" class="md:hidden text-[#8ba2b5] hover:text-[#f0f4f8] transition-colors cursor-pointer focus:outline-none">
+        <button @click="$emit('close')" class="md:hidden text-[#8ba2b5] hover:text-[#f0f4f8] transition-colors cursor-pointer">
           <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <line x1="18" y1="6" x2="6" y2="18"></line>
             <line x1="6" y1="6" x2="18" y2="18"></line>
@@ -29,7 +29,13 @@
       </div>
       
       <nav class="flex-grow p-4 space-y-1.5 text-xs uppercase tracking-wider font-bold">
-        <router-link to="/admin/leads" @click="$emit('close')" class="nav-item">
+        
+        <router-link 
+          v-if="[ROLES.SUPERADMIN, ROLES.ADMIN, ROLES.MANAGER].includes(userRole)"
+          to="/admin/leads" 
+          @click="$emit('close')" 
+          class="nav-item"
+        >
           <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
             <polyline points="14 2 14 8 20 8"></polyline>
@@ -40,7 +46,12 @@
           Заявки
         </router-link>
         
-        <router-link to="/admin/machines" @click="$emit('close')" class="nav-item">
+        <router-link 
+          v-if="[ROLES.SUPERADMIN, ROLES.ADMIN, ROLES.EDITOR].includes(userRole)"
+          to="/admin/machines" 
+          @click="$emit('close')" 
+          class="nav-item"
+        >
           <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="3"></circle>
             <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
@@ -48,7 +59,12 @@
           Техника
         </router-link>
         
-        <router-link to="/admin/users" @click="$emit('close')" class="nav-item">
+        <router-link 
+          v-if="[ROLES.SUPERADMIN].includes(userRole)"
+          to="/admin/users" 
+          @click="$emit('close')" 
+          class="nav-item"
+        >
           <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
             <circle cx="9" cy="7" r="4"></circle>
@@ -58,7 +74,12 @@
           Персонал
         </router-link>
         
-        <router-link to="/admin/audit" @click="$emit('close')" class="nav-item">
+        <router-link 
+          v-if="[ROLES.SUPERADMIN, ROLES.ADMIN].includes(userRole)"
+          to="/admin/audit" 
+          @click="$emit('close')" 
+          class="nav-item"
+        >
           <svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
             <rect x="2" y="3" width="20" height="14" rx="2" ry="2"></rect>
             <line x1="8" y1="21" x2="16" y2="21"></line>
@@ -88,6 +109,7 @@
 <script setup>
 import { useRouter } from 'vue-router'
 import { useAuth } from '@/composables/useAuth'
+import { ROLES } from '@/constants/roles'
 
 defineProps({
   isOpen: { type: Boolean, required: true }
@@ -95,7 +117,7 @@ defineProps({
 const emit = defineEmits(['close'])
 
 const router = useRouter()
-const { logout } = useAuth()
+const { logout, userRole } = useAuth()
 
 async function handleLogout() {
   emit('close')

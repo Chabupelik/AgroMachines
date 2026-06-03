@@ -55,25 +55,36 @@ async def create_machine(
     return {"data": machine}
 
 
-@router.put("/{machine_id}", response_model=ResponseOK[MachineResponse], summary="Обновить карточку техники (Только Админ/Редактор)")
+@router.put("/{machine_id}")
 async def update_machine(
     machine_id: int,
     title: str | None = Form(None),
     description: str | None = Form(None),
-    price: float | None = Form(None),
+    price: int | None = Form(None),
     specifications: str | None = Form(None),
+    is_available: bool | None = Form(None),
+    existing_image_urls: str | None = Form(None), 
     files: list[UploadFile] = File(default=[]),
-    machine_srv: MachineService = Depends(get_machine_service),
-    current_admin: User = Depends(require_editor)
+    current_admin: User = Depends(require_editor),
+    machine_srv: MachineService = Depends(get_machine_service)
 ):
-    specs_dict = json.loads(specifications) if specifications else None
-    schema = MachineUpdateRequest(title=title, description=description, price=price, specifications=specs_dict)
+    specs = json.loads(specifications) if specifications else None
     
-    valid_files = [f for f in files if not isinstance(f, str) and f.size > 0]
-    
-    updated_machine = await machine_srv.update_machine(machine_id, schema, valid_files, current_admin.id)
-    
-    return {"data": updated_machine}
+    urls = json.loads(existing_image_urls) if existing_image_urls else None
+
+    schema = MachineUpdateRequest(
+        title=title,
+        description=description,
+        price=price,
+        specifications=specs,
+        existing_image_urls=urls,
+        is_available=is_available
+    )
+
+    updated_machine = await machine_srv.update_machine(
+        machine_id, schema, files, current_admin.id
+    )
+    return {"status": "ok", "data": updated_machine}
 
 
 @router.delete("/{machine_id}", status_code=status.HTTP_204_NO_CONTENT, summary="Удалить карточку техники (Только Админ/Редактор)")

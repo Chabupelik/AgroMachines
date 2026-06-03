@@ -9,5 +9,6 @@ class AuditLogResponse(BaseModel):
     entity_type: str
     entity_id: int
     timestamp: datetime
+    username: str | None = None  
 
     model_config = ConfigDict(from_attributes=True)

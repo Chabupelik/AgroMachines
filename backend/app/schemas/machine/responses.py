@@ -1,3 +1,4 @@
+from fastapi import Form
 from pydantic import BaseModel, ConfigDict
 from datetime import datetime
 
@@ -9,5 +10,6 @@ class MachineResponse(BaseModel):
     price: float | None
     image_urls: list[str]
     created_at: datetime
+    is_available: bool = Form(True),
 
     model_config = ConfigDict(from_attributes=True)

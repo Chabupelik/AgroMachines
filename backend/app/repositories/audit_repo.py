@@ -1,8 +1,11 @@
+# src/app/repositories/audit_repo.py
+
 import uuid
 from typing import Optional
 from sqlalchemy import select, func
 from app.repositories.base import BaseRepository
 from app.models.audit import AuditLog
+from app.models.user import User
 
 class AuditRepository(BaseRepository[AuditLog]):
     def __init__(self, session):
@@ -16,7 +19,6 @@ class AuditRepository(BaseRepository[AuditLog]):
             entity_id=entity_id
         )
         return await self.add(log)
-
     async def get_filtered_logs(
         self, 
         limit: int = 20, 
@@ -24,8 +26,13 @@ class AuditRepository(BaseRepository[AuditLog]):
         user_id: Optional[uuid.UUID] = None, 
         action: Optional[str] = None, 
         entity_type: Optional[str] = None
-    ) -> list[AuditLog]:
-        query = select(self.model).order_by(self.model.timestamp.desc())
+    ) -> list[tuple[AuditLog, Optional[str]]]: 
+        
+        query = (
+            select(self.model, User.username)
+            .outerjoin(User, self.model.user_id == User.id)
+            .order_by(self.model.timestamp.desc())
+        )
 
         if user_id:
             query = query.where(self.model.user_id == user_id)
@@ -36,7 +43,7 @@ class AuditRepository(BaseRepository[AuditLog]):
 
         query = query.limit(limit).offset(offset)
         result = await self.session.execute(query)
-        return result.scalars().all()
+        return result.all() 
 
     async def count_filtered_logs(
         self, 

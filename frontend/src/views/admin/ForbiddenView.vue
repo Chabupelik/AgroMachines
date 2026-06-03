@@ -20,7 +20,7 @@
           </p>
         </div>
 
-        <router-link :to="{ name: ROUTE_NAMES.ADMIN_LEADS }">
+        <router-link :to="{ name: ROUTE_NAMES.ADMIN  }">
           <button class="inline-flex items-center gap-2 bg-transparent border border-border/80 hover:border-accent hover:text-accent px-6 py-3 rounded-xl font-bold text-xs uppercase tracking-widest active:scale-95 transition-all cursor-pointer">
             <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <polyline points="9 14 4 9 9 4"></polyline>

@@ -46,7 +46,7 @@ const router = createRouter({
 
     {
       path: '/admin',
-      name: 'admin-root',
+      name: ROUTE_NAMES.ADMIN,
       component: () => import('@/views/admin/LeadsView.vue'),
       meta: { requiresAuth: true },
       beforeEnter: (to, from) => {
@@ -57,7 +57,7 @@ const router = createRouter({
           return { name: ROUTE_NAMES.ADMIN_MACHINES }
         }
         
-        if (role === ROLES.SUPERADMIN || role === ROLES.MANAGER) {
+        if (role === ROLES.SUPERADMIN || role === ROLES.ADMIN || role === ROLES.MANAGER) {
           return { name: ROUTE_NAMES.ADMIN_LEADS }
         }
         
@@ -69,13 +69,13 @@ const router = createRouter({
       path: '/admin/leads',
       name: ROUTE_NAMES.ADMIN_LEADS,
       component: () => import('@/views/admin/LeadsView.vue'),
-      meta: { requiresAuth: true, roles: [ROLES.SUPERADMIN, ROLES.MANAGER] }
+      meta: { requiresAuth: true, roles: [ROLES.SUPERADMIN, ROLES.ADMIN, ROLES.MANAGER] }
     },
     {
       path: '/admin/machines',
       name: ROUTE_NAMES.ADMIN_MACHINES,
       component: () => import('@/views/admin/MachinesView.vue'),
-      meta: { requiresAuth: true, roles: [ROLES.SUPERADMIN, ROLES.EDITOR] }
+      meta: { requiresAuth: true, roles: [ROLES.SUPERADMIN, ROLES.ADMIN, ROLES.EDITOR] }
     },
     {
       path: '/admin/users',
@@ -87,7 +87,7 @@ const router = createRouter({
       path: '/admin/audit',
       name: ROUTE_NAMES.ADMIN_AUDIT,
       component: () => import('@/views/admin/AuditView.vue'),
-      meta: { requiresAuth: true, roles: [ROLES.SUPERADMIN] }
+      meta: { requiresAuth: true, roles: [ROLES.SUPERADMIN, ROLES.ADMIN] } 
     },
 
     {

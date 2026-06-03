@@ -7,6 +7,7 @@ from app.models.base import Base
 
 class RoleEnum(str, enum.Enum):
     SUPERADMIN = "SUPERADMIN"
+    ADMIN = "ADMIN" 
     EDITOR = "EDITOR"
     MANAGER = "MANAGER"
 

@@ -5,6 +5,7 @@ export const ROUTE_NAMES = {
   POLICY: 'policy',
   TERMS: 'terms',
   LOGIN: 'login',
+  ADMIN: 'admin-root',
   ADMIN_LEADS: 'admin-leads',
   ADMIN_MACHINES: 'admin-machines',
   ADMIN_USERS: 'admin-users',

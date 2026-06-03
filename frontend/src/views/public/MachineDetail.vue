@@ -88,8 +88,15 @@
         </div>
 
         <div class="space-y-6 text-left lg:pl-4">
-          <div class="inline-block bg-primary/10 border border-primary/20 text-primary px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-widest font-mono">
-            В наличии
+          <div 
+            class="inline-block px-3.5 py-1.5 rounded-full text-[10px] font-bold uppercase tracking-widest font-mono border transition-colors select-none"
+            :class="[
+              machine.is_available 
+                ? 'bg-primary/5 border-primary/20 text-primary' 
+                : 'bg-orange-500/5 border-orange-500/20 text-orange-600'
+            ]"
+          >
+            {{ machine.is_available ? 'В наличии' : 'Под заказ' }}
           </div>
           
           <h1 class="text-3xl sm:text-4xl font-extrabold text-primary uppercase tracking-wider leading-tight">

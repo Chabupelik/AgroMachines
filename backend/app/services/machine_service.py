@@ -24,6 +24,7 @@ class MachineService:
             description=schema.description,
             specifications=schema.specifications,
             price=schema.price,
+            is_available=schema.is_available,
             image_urls=image_urls
         )
         saved_machine = await self.machine_repo.add(new_machine)
@@ -41,17 +42,27 @@ class MachineService:
         if not machine:
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Карточка техники не найдена")
 
-        if files is not None:
-            for old_url in machine.image_urls:
+        existing_urls = schema.existing_image_urls if schema.existing_image_urls is not None else machine.image_urls
+        
+        urls_to_delete = set(machine.image_urls) - set(existing_urls)
+        for old_url in urls_to_delete:
+            try:
                 self.storage_client.delete_file(old_url)
-            
+            except Exception as e:
+                print(f"⚠️ Ошибка удаления старого файла {old_url} из MinIO: {e}")
+
+        new_image_urls = []
+        if files:
             upload_tasks = [self.storage_client.upload_file(file) for file in files]
-            machine.image_urls = await asyncio.gather(*upload_tasks)
+            new_image_urls = await asyncio.gather(*upload_tasks)
+
+        machine.image_urls = list(existing_urls) + new_image_urls
 
         if schema.title is not None: machine.title = schema.title
         if schema.description is not None: machine.description = schema.description
         if schema.specifications is not None: machine.specifications = schema.specifications
         if schema.price is not None: machine.price = schema.price
+        if schema.is_available is not None: machine.is_available = schema.is_available
 
         await self.machine_repo.session.commit()
         await self.machine_repo.session.refresh(machine)

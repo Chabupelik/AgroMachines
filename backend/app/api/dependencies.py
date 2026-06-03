@@ -40,6 +40,11 @@ async def get_current_user(
         
     return user
 
+def require_audit_viewer(current_user: User = Depends(get_current_user)):
+    if current_user.role not in [RoleEnum.SUPERADMIN, RoleEnum.ADMIN]:
+        raise HTTPException(status_code=403, detail="Недостаточно прав для просмотра журнала безопасности")
+    return current_user
+
 async def rate_limiter(request: Request):
     ip = request.client.host
     path = request.url.path
@@ -71,5 +76,5 @@ class RoleChecker:
         return user
 
 require_superadmin = RoleChecker([RoleEnum.SUPERADMIN])
-require_editor = RoleChecker([RoleEnum.SUPERADMIN, RoleEnum.EDITOR])
-require_manager = RoleChecker([RoleEnum.SUPERADMIN, RoleEnum.MANAGER])
+require_editor = RoleChecker([RoleEnum.SUPERADMIN, RoleEnum.ADMIN, RoleEnum.EDITOR])
+require_manager = RoleChecker([RoleEnum.SUPERADMIN, RoleEnum.ADMIN, RoleEnum.MANAGER])

@@ -46,6 +46,7 @@ import { useAuth } from '@/composables/useAuth'
 import BaseInput from '@/components/ui/BaseInput.vue'
 import BaseButton from '@/components/ui/BaseButton.vue'
 import BaseToast from '@/components/ui/BaseToast.vue'
+import { ROUTE_NAMES } from '@/constants/routes'
 
 const router = useRouter()
 const { login } = useAuth()
@@ -62,7 +63,7 @@ async function handleLogin() {
   isLoading.value = false
 
   if (success) {
-    router.push('/admin/leads')
+    router.push({ name: ROUTE_NAMES.ADMIN }) 
   }
 }
 </script>

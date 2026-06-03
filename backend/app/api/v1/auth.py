@@ -90,7 +90,7 @@ async def update_user(
     auth_srv: AuthService = Depends(get_auth_service),
     current_admin: User = Depends(require_superadmin)
 ):
-    updated_user = await auth_srv.update_user(user_id, schema)
+    updated_user = await auth_srv.update_user(user_id, schema, current_admin.id)
     return {"data": updated_user}
 
 @router.get(
