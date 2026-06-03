@@ -3,13 +3,13 @@
     <div class="max-w-[1400px] mx-auto w-full grid grid-cols-1 lg:grid-cols-12 gap-16 items-center">
       
       <div class="lg:col-span-7 space-y-10">
-        
+  
         <div class="flex items-center gap-6">
           <div class="w-20 h-20 bg-primary rounded-2xl flex items-center justify-center shadow-2xl border-2 border-white/10">
-             <svg class="w-12 h-12 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <svg class="w-12 h-12 text-accent" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
                 <path d="M6 16h12M8 16V10h6v6M14 10l2 3h2v3M10 10V8h1" stroke-linecap="round" />
                 <circle cx="18" cy="18" r="3" /><circle cx="6" cy="18" r="2" />
-             </svg>
+            </svg>
           </div>
           <div>
             <h2 class="text-primary font-black uppercase tracking-[6px] text-lg">AgroMachines</h2>
@@ -23,10 +23,10 @@
             Прямые поставки с заводов
           </div>
 
-          <h1 class="text-6xl sm:text-8xl font-black text-primary leading-[0.9] tracking-tighter uppercase">
+          <h1 class="text-4xl sm:text-6xl md:text-7xl lg:text-8xl font-black text-primary leading-[0.95] sm:leading-[0.9] tracking-tighter uppercase">
             Техника <br>высшей <br><span class="text-accent">мощности</span>
           </h1>
-          <p class="text-text-muted text-lg sm:text-xl max-w-2xl font-medium leading-relaxed">
+          <p class="text-text-muted text-base sm:text-xl max-w-2xl font-medium leading-relaxed">
             Поставляем тяговые машины классов 3–8 для решения любых задач. Гарантируем ввод в эксплуатацию за 48 часов и пожизненную сервисную поддержку.
           </p>
         </div>
@@ -45,24 +45,24 @@
           </router-link>
         </div>
 
-        <div class="pt-8 border-t border-border/40 grid grid-cols-3 gap-6">
+        <div class="pt-8 border-t border-border/40 grid grid-cols-3 gap-3 sm:gap-6">
           <div>
-            <p class="text-2xl sm:text-3xl font-black text-primary">48 ч</p>
-            <p class="text-xs text-text-muted uppercase tracking-wider font-semibold">Ввод в работу</p>
+            <p class="text-xl sm:text-3xl font-black text-primary">48 ч</p>
+            <p class="text-[10px] sm:text-xs text-text-muted uppercase tracking-wider font-semibold">Ввод в работу</p>
           </div>
           <div>
-            <p class="text-2xl sm:text-3xl font-black text-primary">6 классов</p>
-            <p class="text-xs text-text-muted uppercase tracking-wider font-semibold">Тяговой мощности</p>
+            <p class="text-xl sm:text-3xl font-black text-primary">6 классов</p>
+            <p class="text-[10px] sm:text-xs text-text-muted uppercase tracking-wider font-semibold">Тяговой мощности</p>
           </div>
           <div>
-            <p class="text-2xl sm:text-3xl font-black text-primary">24/7</p>
-            <p class="text-xs text-text-muted uppercase tracking-wider font-semibold">Сервисная поддержка</p>
+            <p class="text-xl sm:text-3xl font-black text-primary">24/7</p>
+            <p class="text-[10px] sm:text-xs text-text-muted uppercase tracking-wider font-semibold">Сервисная поддержка</p>
           </div>
         </div>
 
       </div>
 
-      <div class="lg:col-span-5 relative">
+      <div class="lg:col-span-5 relative max-w-[450px] lg:max-w-none mx-auto w-full">
         <div class="relative rounded-[40px] overflow-hidden shadow-2xl border-[12px] border-white bg-white">
           <img 
             src="https://images.unsplash.com/photo-1530267981375-f0de937f5f13?auto=format&fit=crop&q=80&w=1000" 

@@ -23,7 +23,7 @@
               <div class="flex gap-1.5" v-if="item.status !== 'DONE'">
                 <button 
                   v-if="leadDomain.canTakeInProgress(item)"
-                  @click="handleStatusChange(item, 'IN_PROGRESS', currentUser.username)"
+                  @click="handleStatusChange(item, 'IN_PROGRESS', currentUser?.username)"
                   class="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-mono font-bold uppercase tracking-widest text-primary border border-primary/20 bg-primary/5 rounded-lg hover:bg-primary hover:text-surface hover:-translate-y-[1px] active:translate-y-0 transition-all duration-150 cursor-pointer shadow-sm"
                 >
                   <svg class="w-2.5 h-2.5 fill-current shrink-0" viewBox="0 0 24 24">
@@ -33,8 +33,8 @@
                 </button>
 
                 <button 
-                  v-if="leadDomain.canComplete(item, currentUser.username, currentUser.role)"
-                  @click="handleStatusChange(item, 'DONE', currentUser.username)"
+                  v-if="leadDomain.canComplete(item, currentUser?.username, currentUser?.role)"
+                  @click="handleStatusChange(item, 'DONE', currentUser?.username)"
                   class="inline-flex items-center gap-1.5 px-3 py-1.5 text-[10px] font-mono font-bold uppercase tracking-widest text-success border border-success/20 bg-success/5 rounded-lg hover:bg-success hover:text-white hover:-translate-y-[1px] active:translate-y-0 transition-all duration-150 cursor-pointer shadow-sm"
                 >
                   <svg class="w-2.5 h-2.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">

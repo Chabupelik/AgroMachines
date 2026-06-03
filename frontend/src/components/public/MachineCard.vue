@@ -1,7 +1,7 @@
 <template>
   <router-link 
     :to="`/machines/${machine.id}-${slugify(machine.title)}`"
-    class="group relative bg-surface border border-border/50 rounded-[24px] p-4 flex flex-col gap-4 hover:shadow-xl transition-all duration-300 no-underline"
+    class="group relative bg-surface border border-border/50 rounded-[24px] p-4 flex flex-col gap-4 hover:shadow-xl transition-all duration-300 no-underline max-w-[420px] mx-auto w-full"
   >
     <div class="relative overflow-hidden rounded-[18px] aspect-[4/3] bg-bg flex items-center justify-center shrink-0">
       
@@ -72,9 +72,26 @@ function formatPrice(val) {
   return new Intl.NumberFormat('ru-RU').format(val) + ' ₽'
 }
 
+function translite(str) {
+  const ru = {
+    'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd', 
+    'е': 'e', 'ё': 'e', 'ж': 'zh', 'з': 'z', 'и': 'i', 
+    'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm', 'н': 'n', 
+    'о': 'o', 'п': 'p', 'р': 'r', 'с': 's', 'т': 't', 
+    'у': 'u', 'ф': 'f', 'х': 'h', 'ц': 'c', 'ч': 'ch', 
+    'ш': 'sh', 'щ': 'shch', 'ь': '', 'ы': 'y', 'ъ': '', 
+    'э': 'e', 'ю': 'yu', 'я': 'ya'
+  }
+  return str.split('').map(c => {
+    const l = c.toLowerCase()
+    return ru[l] !== undefined ? ru[l] : c
+  }).join('')
+}
+
 function slugify(text) {
-  const slug = text
-    .toString()
+  const translited = translite(text.toString())
+  
+  const slug = translited
     .toLowerCase()
     .trim()
     .replace(/\s+/g, '-')

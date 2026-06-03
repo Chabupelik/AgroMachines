@@ -1,4 +1,3 @@
-<!-- src/views/admin/UsersView.vue -->
 <template>
   <AdminLayout>
     <div class="space-y-6 max-w-[1400px] mx-auto">

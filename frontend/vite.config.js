@@ -11,7 +11,6 @@ export default defineConfig({
     vueDevTools(),
     tailwindcss(),
   ],
-  // 🔥 ДОБАВЛЯЕМ ЭТОТ БЛОК НАСТРОЕК ПРОКСИ:
   server: {
     proxy: {
       '/api': {

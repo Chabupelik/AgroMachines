@@ -1,7 +1,7 @@
 <template>
   <PublicLayout>
     <div class="max-w-[850px] mx-auto px-6 py-16">
-      <div class="bg-surface border border-border/80 p-8 sm:p-12 rounded-2xl shadow-xl">
+      <div class="bg-surface border border-border/80 p-5 sm:p-12 rounded-2xl shadow-xl">
         <div v-html="compiledMarkdown" class="markdown-body"></div>
       </div>
     </div>
@@ -43,13 +43,23 @@ watch(() => route.meta.document, loadDocument)
 
 <style>
 .markdown-body h1 {
-  font-size: 1.875rem;
+  font-size: 1.25rem;
   font-weight: 800;
   text-transform: uppercase;
-  letter-spacing: 1px;
+  letter-spacing: 0.5px;
+  line-height: 1.3;
   color: var(--color-primary);
   margin-bottom: 1.5rem;
 }
+
+@media (min-width: 640px) {
+  .markdown-body h1 {
+    font-size: 1.875rem;
+    letter-spacing: 1px;
+    line-height: 1.2;
+  }
+}
+
 .markdown-body h3 {
   font-size: 1.125rem;
   font-weight: 700;

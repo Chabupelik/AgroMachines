@@ -1,5 +1,5 @@
 <template>
-  <form @submit.prevent="submitForm" class="flex flex-col max-h-[80vh] sm:max-h-[85vh]">
+  <form @submit.prevent="submitForm" class="flex flex-col max-h-[65vh] sm:max-h-[75vh]">
     
     <h2 class="text-lg sm:text-xl font-black text-primary uppercase tracking-widest border-b border-border/40 pb-4 shrink-0 select-none">
       {{ machine ? 'Редактировать технику' : 'Новая карточка техники' }}
@@ -7,7 +7,6 @@
 
     <div class="flex-grow overflow-y-auto py-4 pr-1.5 space-y-6">
       
-      <!-- Основные поля -->
       <div class="space-y-4">
         <BaseInput v-model="formData.title" label="Название *" placeholder="Трактор Belarus 82.1" required />
         
@@ -24,7 +23,6 @@
         <BaseInput v-model="formData.price" type="number" label="Цена (в рублях)" placeholder="2000000" />
       </div>
 
-      <!-- Характеристики (JSONB) -->
       <div class="space-y-3 border border-border/50 bg-bg/50 p-4 rounded-2xl">
         <div class="flex justify-between items-center">
           <label class="text-[10px] text-text-muted uppercase tracking-widest font-extrabold">Характеристики (Спецификации)</label>
@@ -112,7 +110,6 @@
             </span>
           </div>
           
-          <!-- Кнопка-тумблер (type="button" важен, чтобы форма не отправлялась по клику) -->
           <button 
             type="button" 
             @click="formData.is_available = !formData.is_available"
@@ -150,8 +147,8 @@
     </div>
 
     <div class="pt-4 border-t border-border/40 flex justify-end gap-3 shrink-0 select-none">
-      <BaseButton type="button" variant="secondary" @click="$emit('cancel')">Отмена</BaseButton>
-      <BaseButton type="submit" :loading="isExecuting">Сохранить</BaseButton>
+      <BaseButton type="button" variant="secondary" class="w-1/2 sm:w-auto" @click="$emit('cancel')">Отмена</BaseButton>
+      <BaseButton type="submit" :loading="isExecuting" class="w-1/2 sm:w-auto">Сохранить</BaseButton>
     </div>
 
     <transition 

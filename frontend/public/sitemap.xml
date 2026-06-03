@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 
+  ==========================================================
+  ℹ️ ПРИМЕЧАНИЕ ОТ РАРАЗБОТЧИКА:
+  В robots.txt сейчас включен полный запрет (Disallow: /),
+  поэтому поисковики проигнорируют этот sitemap.xml.
+  Ниже оставлена правильная структура ссылок под домен для будущего релиза.
+  ==========================================================
+-->
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+   <url>
+      <loc>https://agromachines.chabupelik.su/</loc>
+      <changefreq>daily</changefreq>
+      <priority>1.0</priority>
+   </url>
+   <url>
+      <loc>https://agromachines.chabupelik.su/machines</loc>
+      <changefreq>hourly</changefreq>
+      <priority>0.8</priority>
+   </url>
+   <url>
+      <loc>https://agromachines.chabupelik.su/policy</loc>
+      <changefreq>monthly</changefreq>
+      <priority>0.3</priority>
+   </url>
+   <url>
+      <loc>https://agromachines.chabupelik.su/terms</loc>
+      <changefreq>monthly</changefreq>
+      <priority>0.3</priority>
+   </url>
+</urlset>

@@ -34,7 +34,7 @@
 
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
         
-        <div class="space-y-4">
+        <div class="space-y-4 max-w-[550px] lg:max-w-none mx-auto w-full">
           <div class="relative w-full aspect-[4/3] bg-surface border border-border/60 rounded-2xl overflow-hidden flex items-center justify-center group/main shadow-md">
             <img 
               v-if="machine.image_urls && machine.image_urls.length > 0" 
@@ -185,6 +185,7 @@
 
     </div>
 
+    <!-- Модальное окно заказа -->
     <BaseModal :show="isLeadModalVisible" @close="closeLeadModal">
       <LeadForm flat />
     </BaseModal>
