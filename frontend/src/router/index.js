@@ -3,6 +3,7 @@ import { ROUTE_NAMES } from '@/constants/routes'
 import { ROLES } from '@/constants/roles'
 import { authGuard } from '@/guards/auth.guard'
 import { roleGuard } from '@/guards/role.guard'
+import { useAuthStore } from '@/stores/auth.store'
 
 import HomeView from '@/views/public/HomeView.vue'
 
@@ -41,6 +42,27 @@ const router = createRouter({
       path: '/login',
       name: ROUTE_NAMES.LOGIN,
       component: () => import('@/views/admin/LoginView.vue')
+    },
+
+    {
+      path: '/admin',
+      name: 'admin-root',
+      component: () => import('@/views/admin/LeadsView.vue'),
+      meta: { requiresAuth: true },
+      beforeEnter: (to, from) => {
+        const authStore = useAuthStore()
+        const role = authStore.userRole
+        
+        if (role === ROLES.EDITOR) {
+          return { name: ROUTE_NAMES.ADMIN_MACHINES }
+        }
+        
+        if (role === ROLES.SUPERADMIN || role === ROLES.MANAGER) {
+          return { name: ROUTE_NAMES.ADMIN_LEADS }
+        }
+        
+        return { name: ROUTE_NAMES.FORBIDDEN }
+      }
     },
 
     {
@@ -93,7 +115,6 @@ const router = createRouter({
     return { top: 0, behavior: 'smooth' }
   }
 })
-
 
 router.beforeEach(authGuard)
 router.beforeEach(roleGuard)

@@ -73,7 +73,11 @@ async def update_lead_status(
     lead_service: LeadService = Depends(get_lead_service),
     current_user: User = Depends(require_manager)
 ):
-    return await lead_service.update_lead_status(lead_id, new_status, current_user.username, current_user.id)
+    lead = await lead_service.update_lead_status(
+        lead_id, new_status, current_user.username, current_user.id
+    )
+    
+    return ResponseOK(data=lead)
 
 
 @router.delete(

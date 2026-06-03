@@ -1,11 +1,19 @@
 import { useAuthStore } from '@/stores/auth.store'
 import { ROUTE_NAMES } from '@/constants/routes'
 
-export function authGuard(to, from, next) {
-    const authStore = useAuthStore()
+export async function authGuard(to) {
+  const authStore = useAuthStore()
 
-    if (to.meta.requiresAuth && !authStore.isAuthenticated) {
-        return { name: ROUTE_NAMES.LOGIN }
+  if (!authStore.isInitialized) {
+    try {
+      await authStore.checkPersistedSession()
+    } catch (e) {
+    } finally {
+      authStore.isInitialized = true
     }
-    next()
+  }
+
+  if (to.meta.requiresAuth && !authStore.isAuthenticated) {
+    return { name: ROUTE_NAMES.LOGIN }
+  }
 }

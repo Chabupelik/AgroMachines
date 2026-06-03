@@ -15,8 +15,9 @@ export function useAuth() {
   async function login(username, password) {
     try {
       const res = await authApi.login(username, password)
-      const token = res.data.access_token
-      const role = res.data.role
+      console.log(res)
+      const token = res.access_token
+      const role = res.role
       
       const payload = JSON.parse(atob(token.split('.')[1]))
       

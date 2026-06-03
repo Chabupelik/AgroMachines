@@ -1,16 +1,37 @@
 <template>
   <div class="min-h-screen bg-bg text-text-main flex flex-col items-center justify-center p-6 font-sans">
-    <div class="text-center space-y-6 max-w-sm">
-      <div class="text-8xl select-none">🚜💨</div>
-      <h1 class="text-5xl font-extrabold text-primary tracking-widest">404</h1>
-      <p class="text-text-muted text-sm leading-relaxed">
-        Похоже, этот трактор уехал в другое поле. Запрашиваемая страница не существует.
-      </p>
-      <router-link to="/">
-        <button class="bg-primary text-surface px-6 py-3 rounded-lg font-bold text-xs uppercase tracking-widest hover:brightness-110 active:scale-95 transition-all cursor-pointer">
-          Вернуться на главную
-        </button>
-      </router-link>
+    <div class="text-center space-y-8 max-w-md bg-surface border border-border/40 p-12 rounded-3xl shadow-xl relative overflow-hidden">
+      <div class="absolute inset-0 opacity-[0.01] pointer-events-none bg-[linear-gradient(to_right,#000_1px,transparent_1px),linear-gradient(to_bottom,#000_1px,transparent_1px)] bg-[size:2rem_2rem]"></div>
+      
+      <div class="relative flex flex-col items-center space-y-6">
+        <div class="w-20 h-20 rounded-2xl bg-primary/5 border border-primary/10 flex items-center justify-center text-primary">
+          <svg class="w-10 h-10 animate-[spin_60s_linear_infinite]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"></polygon>
+          </svg>
+        </div>
+        
+        <div class="space-y-3">
+          <h1 class="text-5xl font-black text-primary tracking-widest font-mono">404</h1>
+          <h2 class="text-sm font-bold text-accent uppercase tracking-widest">Страница не найдена</h2>
+          <p class="text-text-muted text-xs leading-relaxed max-w-sm mx-auto">
+            Запрашиваемый ресурс временно недоступен или никогда не существовал. Пожалуйста, проверьте написание ссылки или вернитесь на главную страницу.
+          </p>
+        </div>
+
+        <router-link to="/">
+          <button class="inline-flex items-center gap-2 bg-transparent border border-border/80 hover:border-accent hover:text-accent px-6 py-3 rounded-xl font-bold text-xs uppercase tracking-widest active:scale-95 transition-all cursor-pointer">
+            <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="9 14 4 9 9 4"></polyline>
+              <path d="M20 20v-7a4 4 0 0 0-4-4H4"></path>
+            </svg>
+            Вернуться на главную
+          </button>
+        </router-link>
+      </div>
     </div>
   </div>
 </template>
+
+<script setup>
+</script>

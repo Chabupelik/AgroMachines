@@ -80,6 +80,19 @@ class LeadService:
             raise HTTPException(status_code=404, detail="Заявка не найдена")
 
         old_status = lead.status
+
+        if new_status == LeadStatus.IN_PROGRESS and old_status != LeadStatus.NEW:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, 
+                detail="Эта заявка уже обрабатывается другим менеджером."
+            )
+            
+        if new_status == LeadStatus.DONE and old_status != LeadStatus.IN_PROGRESS:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT, 
+                detail="Эту заявку нельзя завершить, так как она не находится в работе."
+            )
+
         lead.status = new_status
         
         if new_status == LeadStatus.IN_PROGRESS:
