@@ -65,7 +65,7 @@
       <div class="lg:col-span-5 relative max-w-[450px] lg:max-w-none mx-auto w-full">
         <div class="relative rounded-[40px] overflow-hidden shadow-2xl border-[12px] border-white bg-white">
           <img 
-            src="https://images.unsplash.com/photo-1530267981375-f0de937f5f13?auto=format&fit=crop&q=80&w=1000" 
+            src="https://agromachines.chabupelik.su/media/hero.webp" 
             class="w-full aspect-[4/5] object-cover"
             alt="Agro Power"
           />
