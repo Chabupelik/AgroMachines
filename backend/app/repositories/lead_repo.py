@@ -19,9 +19,6 @@ class LeadRepository(BaseRepository[Lead]):
         return result.scalar_one_or_none()
     
     async def atomic_update_status(self, lead_id: int, old_status: LeadStatus, new_status: LeadStatus, processed_by: str | None = None) -> bool:
-        from sqlalchemy import update
-        from datetime import datetime, timezone
-
         query = (
             update(self.model)
             .where(self.model.id == lead_id, self.model.status == old_status)
