@@ -8,26 +8,17 @@ from fastapi.security import (
     OAuth2PasswordRequestForm,
 )
 
-from app.api.dependencies import rate_limiter, require_superadmin
+from app.api.dependencies import AuthSrv, rate_limiter, require_superadmin
 from app.core.config import settings
-from app.db.database import DbSession
-from app.db.redis import RedisClient
 from app.models.user import User
-from app.repositories.user_repo import UserRepository
 from app.schemas.auth.requests import UserCreateRequest, UserUpdateRequest
 from app.schemas.auth.responses import TokenResponse, UserResponse
 from app.schemas.common import ResponseOK
-from app.services.auth_service import AuthService
 
 router = APIRouter()
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
-def get_auth_service(db: DbSession, redis: RedisClient) -> AuthService:
-    return AuthService(UserRepository(db), redis=redis)
-
-
-AuthSrv = Annotated[AuthService, Depends(get_auth_service)]
 CurrentSuperAdmin = Annotated[User, Depends(require_superadmin)]
 OAuth2Form = Annotated[OAuth2PasswordRequestForm, Depends()]
 RefreshTokenCookie = Annotated[str | None, Cookie()]

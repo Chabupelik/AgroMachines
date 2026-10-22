@@ -1,3 +1,4 @@
+import json
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
@@ -58,6 +59,89 @@ class AuthService:
         role_str = user.role.value if hasattr(user.role, "value") else str(user.role)
         access_token, refresh_token = self.create_tokens(user.id, role_str)
         return access_token, refresh_token, user.role
+
+    async def get_user_from_token(self, token: str) -> User:
+        credentials_exception = HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Не удалось проверить учётные данные (токен истёк или неверен)",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+        try:
+            payload = jwt.decode(
+                token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+            )
+            user_id_str: str | None = payload.get("sub")
+            token_type: str | None = payload.get("type")
+            jti: str | None = payload.get("jti")
+            token_iat: int | None = payload.get("iat")
+
+            if not user_id_str or token_type != "access":
+                raise credentials_exception
+
+            user_id = UUID(user_id_str)
+
+        except (JWTError, ValueError):
+            raise credentials_exception
+
+        if self.redis:
+            async with self.redis.pipeline(transaction=True) as pipe:
+                if jti:
+                    pipe.exists(f"token_blacklist:{jti}")
+                pipe.get(f"user_revoked:{user_id}")
+                pipe.get(f"user_cache:{user_id}")
+                pipe_results = await pipe.execute()
+
+            idx = 0
+            if jti:
+                if pipe_results[idx]:
+                    raise credentials_exception
+                idx += 1
+
+            revoked_ts = pipe_results[idx]
+            idx += 1
+            if revoked_ts is not None and (
+                token_iat is None or token_iat < int(revoked_ts)
+            ):
+                raise credentials_exception
+
+            cached_user_json = pipe_results[idx]
+            if cached_user_json:
+                try:
+                    cached_data = json.loads(cached_user_json)
+                    user = User(
+                        id=UUID(cached_data["id"]),
+                        username=cached_data["username"],
+                        password_hash=cached_data["password_hash"],
+                        role=RoleEnum(cached_data["role"]),
+                        telegram_username=cached_data.get("telegram_username"),
+                        is_active=cached_data["is_active"],
+                    )
+                    if not user.is_active:
+                        raise credentials_exception
+                    return user
+                except HTTPException:
+                    raise
+                except Exception:
+                    pass
+
+        user = await self.user_repo.get_by_id(user_id)
+
+        if user is None or not user.is_active:
+            raise credentials_exception
+
+        if self.redis:
+            user_data = {
+                "id": str(user.id),
+                "username": user.username,
+                "password_hash": user.password_hash,
+                "role": user.role.value,
+                "telegram_username": user.telegram_username,
+                "is_active": user.is_active,
+            }
+            await self.redis.setex(f"user_cache:{user.id}", 120, json.dumps(user_data))
+
+        return user
 
     async def is_token_blacklisted(self, jti: str | None) -> bool:
         if not self.redis or not jti:

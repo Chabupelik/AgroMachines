@@ -1,19 +1,23 @@
-import json
 from typing import Annotated
-from uuid import UUID
 
-import jwt
 from fastapi import Depends, Header, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
-from jwt.exceptions import PyJWTError as JWTError
 
 from app.core.config import settings
 from app.db.database import DbSession
 from app.db.redis import RedisClient
 from app.models.user import RoleEnum, User
 from app.repositories.user_repo import UserRepository
+from app.services.auth_service import AuthService
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+
+
+def get_auth_service(db: DbSession, redis: RedisClient) -> AuthService:
+    return AuthService(UserRepository(db), redis=redis)
+
+
+AuthSrv = Annotated[AuthService, Depends(get_auth_service)]
 
 
 def get_client_ip(request: Request) -> str:
@@ -37,87 +41,9 @@ def get_client_ip(request: Request) -> str:
 
 async def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],
-    db: DbSession,
-    redis: RedisClient,
+    auth_service: AuthSrv,
 ) -> User:
-    credentials_exception = HTTPException(
-        status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Не удалось проверить учётные данные (токен истёк или неверен)",
-        headers={"WWW-Authenticate": "Bearer"},
-    )
-
-    try:
-        payload = jwt.decode(
-            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
-        )
-        user_id_str: str | None = payload.get("sub")
-        token_type: str | None = payload.get("type")
-        jti: str | None = payload.get("jti")
-        token_iat: int | None = payload.get("iat")
-
-        if not user_id_str or token_type != "access":
-            raise credentials_exception
-
-        user_id = UUID(user_id_str)
-
-    except (JWTError, ValueError):
-        raise credentials_exception
-
-    async with redis.pipeline(transaction=True) as pipe:
-        if jti:
-            pipe.exists(f"token_blacklist:{jti}")
-        pipe.get(f"user_revoked:{user_id}")
-        pipe.get(f"user_cache:{user_id}")
-        pipe_results = await pipe.execute()
-
-    idx = 0
-    if jti:
-        if pipe_results[idx]:
-            raise credentials_exception
-        idx += 1
-
-    revoked_ts = pipe_results[idx]
-    idx += 1
-    if revoked_ts is not None and (token_iat is None or token_iat < int(revoked_ts)):
-        raise credentials_exception
-
-    cached_user_json = pipe_results[idx]
-    if cached_user_json:
-        try:
-            cached_data = json.loads(cached_user_json)
-            user = User(
-                id=UUID(cached_data["id"]),
-                username=cached_data["username"],
-                password_hash=cached_data["password_hash"],
-                role=RoleEnum(cached_data["role"]),
-                telegram_username=cached_data.get("telegram_username"),
-                is_active=cached_data["is_active"],
-            )
-            if not user.is_active:
-                raise credentials_exception
-            return user
-        except HTTPException:
-            raise
-        except Exception:
-            pass
-
-    user_repo = UserRepository(db)
-    user = await user_repo.get_by_id(user_id)
-
-    if user is None or not user.is_active:
-        raise credentials_exception
-
-    user_data = {
-        "id": str(user.id),
-        "username": user.username,
-        "password_hash": user.password_hash,
-        "role": user.role.value,
-        "telegram_username": user.telegram_username,
-        "is_active": user.is_active,
-    }
-    await redis.setex(f"user_cache:{user.id}", 120, json.dumps(user_data))
-
-    return user
+    return await auth_service.get_user_from_token(token)
 
 
 async def rate_limiter(
