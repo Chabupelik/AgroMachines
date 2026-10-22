@@ -1,8 +1,11 @@
+import json
 from typing import Annotated
+from uuid import UUID
 
+import jwt
 from fastapi import Depends, Header, HTTPException, Request, status
 from fastapi.security import OAuth2PasswordBearer
-from jose import JWTError, jwt
+from jwt.exceptions import PyJWTError as JWTError
 
 from app.core.config import settings
 from app.db.database import DbSession
@@ -11,6 +14,25 @@ from app.models.user import RoleEnum, User
 from app.repositories.user_repo import UserRepository
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
+
+
+def get_client_ip(request: Request) -> str:
+    cf_ip = request.headers.get("cf-connecting-ip")
+    if cf_ip:
+        return cf_ip.strip()
+
+    x_real_ip = request.headers.get("x-real-ip")
+    if x_real_ip:
+        return x_real_ip.strip()
+
+    x_forwarded_for = request.headers.get("x-forwarded-for")
+    if x_forwarded_for:
+        return x_forwarded_for.split(",")[0].strip()
+
+    if request.client and request.client.host:
+        return request.client.host
+
+    return "unknown"
 
 
 async def get_current_user(
@@ -28,23 +50,56 @@ async def get_current_user(
         payload = jwt.decode(
             token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
         )
-        user_id: str = payload.get("sub")
-        token_type: str = payload.get("type")
+        user_id_str: str | None = payload.get("sub")
+        token_type: str | None = payload.get("type")
         jti: str | None = payload.get("jti")
         token_iat: int | None = payload.get("iat")
 
-        if user_id is None or token_type != "access":
+        if not user_id_str or token_type != "access":
             raise credentials_exception
 
-    except JWTError:
+        user_id = UUID(user_id_str)
+
+    except (JWTError, ValueError):
         raise credentials_exception
 
-    if jti and await redis.exists(f"token_blacklist:{jti}"):
-        raise credentials_exception
+    async with redis.pipeline(transaction=True) as pipe:
+        if jti:
+            pipe.exists(f"token_blacklist:{jti}")
+        pipe.get(f"user_revoked:{user_id}")
+        pipe.get(f"user_cache:{user_id}")
+        pipe_results = await pipe.execute()
 
-    revoked_ts = await redis.get(f"user_revoked:{user_id}")
+    idx = 0
+    if jti:
+        if pipe_results[idx]:
+            raise credentials_exception
+        idx += 1
+
+    revoked_ts = pipe_results[idx]
+    idx += 1
     if revoked_ts is not None and (token_iat is None or token_iat < int(revoked_ts)):
         raise credentials_exception
+
+    cached_user_json = pipe_results[idx]
+    if cached_user_json:
+        try:
+            cached_data = json.loads(cached_user_json)
+            user = User(
+                id=UUID(cached_data["id"]),
+                username=cached_data["username"],
+                password_hash=cached_data["password_hash"],
+                role=RoleEnum(cached_data["role"]),
+                telegram_username=cached_data.get("telegram_username"),
+                is_active=cached_data["is_active"],
+            )
+            if not user.is_active:
+                raise credentials_exception
+            return user
+        except HTTPException:
+            raise
+        except Exception:
+            pass
 
     user_repo = UserRepository(db)
     user = await user_repo.get_by_id(user_id)
@@ -52,31 +107,33 @@ async def get_current_user(
     if user is None or not user.is_active:
         raise credentials_exception
 
+    user_data = {
+        "id": str(user.id),
+        "username": user.username,
+        "password_hash": user.password_hash,
+        "role": user.role.value,
+        "telegram_username": user.telegram_username,
+        "is_active": user.is_active,
+    }
+    await redis.setex(f"user_cache:{user.id}", 120, json.dumps(user_data))
+
     return user
-
-
-def require_audit_viewer(
-    current_user: Annotated[User, Depends(get_current_user)],
-) -> User:
-    if current_user.role not in [RoleEnum.SUPERADMIN, RoleEnum.ADMIN]:
-        raise HTTPException(
-            status_code=403, detail="Недостаточно прав для просмотра аудит-лога"
-        )
-    return current_user
 
 
 async def rate_limiter(
     request: Request,
     redis: RedisClient,
 ) -> None:
-    ip = request.client.host
+    ip = get_client_ip(request)
     path = request.url.path
     key = f"rate_limit:{ip}:{path}"
 
-    current_requests = await redis.incr(key)
+    async with redis.pipeline(transaction=True) as pipe:
+        pipe.incr(key)
+        pipe.expire(key, 60, nx=True)
+        res = await pipe.execute()
 
-    if current_requests == 1:
-        await redis.expire(key, 60)
+    current_requests = res[0]
 
     if current_requests > 5:
         raise HTTPException(
@@ -102,6 +159,7 @@ class RoleChecker:
 
 
 require_superadmin = RoleChecker([RoleEnum.SUPERADMIN])
+require_audit_viewer = RoleChecker([RoleEnum.SUPERADMIN, RoleEnum.ADMIN])
 require_editor = RoleChecker([RoleEnum.SUPERADMIN, RoleEnum.ADMIN, RoleEnum.EDITOR])
 require_manager = RoleChecker([RoleEnum.SUPERADMIN, RoleEnum.ADMIN, RoleEnum.MANAGER])
 

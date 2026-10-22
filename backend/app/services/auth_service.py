@@ -1,9 +1,10 @@
 from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
+import jwt
 import redis.asyncio as aioredis
 from fastapi import HTTPException, status
-from jose import JWTError, jwt
+from jwt.exceptions import PyJWTError as JWTError
 
 from app.core.config import settings
 from app.core.security import create_jwt_token, hash_password, verify_password
@@ -90,7 +91,10 @@ class AuthService:
             return
         ttl = settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60
         now_ts = int(datetime.now(UTC).timestamp())
-        await self.redis.setex(f"user_revoked:{user_id}", ttl, str(now_ts))
+        async with self.redis.pipeline(transaction=True) as pipe:
+            pipe.setex(f"user_revoked:{user_id}", ttl, str(now_ts))
+            pipe.delete(f"user_cache:{user_id}")
+            await pipe.execute()
 
     async def is_user_token_revoked(
         self, user_id: UUID | str, token_iat: int | None
@@ -281,6 +285,8 @@ class AuthService:
 
         if is_security_change:
             await self.revoke_user_tokens(user.id)
+        elif self.redis:
+            await self.redis.delete(f"user_cache:{user.id}")
 
         return user
 

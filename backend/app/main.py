@@ -13,6 +13,7 @@ from pydantic import ValidationError
 from sqlalchemy import text
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from app.api.dependencies import get_client_ip
 from app.api.v1.audit import router as audit_router
 from app.api.v1.auth import router as auth_router
 from app.api.v1.leads import router as leads_router
@@ -79,8 +80,9 @@ async def log_requests_middleware(request: Request, call_next):
     start_time = time.time()
     response: Response = await call_next(request)
     process_time_ms = (time.time() - start_time) * 1000
+    client_ip = get_client_ip(request)
     logger.info(
-        f'?? {request.client.host} - "{request.method} {request.url.path}" '
+        f'?? {client_ip} - "{request.method} {request.url.path}" '
         f"{response.status_code} ({process_time_ms:.2f}ms)"
     )
     return response

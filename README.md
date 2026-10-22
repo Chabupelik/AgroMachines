@@ -67,7 +67,7 @@
 | **Backend** | Python 3.12, FastAPI, SQLAlchemy 2.0, Alembic |
 | **Database** | PostgreSQL (основная БД), Redis (кэш, rate limit, локи) |
 | **Media Storage** | MinIO (S3-совместимое локальное хранилище, aioboto3) |
-| **Auth** | JWT (python-jose), Argon2id (argon2-cffi) |
+| **Auth** | JWT (PyJWT), Argon2id (argon2-cffi) |
 | **Infrastructure** | Docker, Docker Compose, Nginx, Cloudflare |
 | **Integrations** | Telegram Bot API, Cloudflare Turnstile |
 

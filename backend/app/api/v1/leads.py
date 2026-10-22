@@ -9,7 +9,12 @@ from fastapi import (
     status,
 )
 
-from app.api.dependencies import rate_limiter, require_manager, require_superadmin
+from app.api.dependencies import (
+    get_client_ip,
+    rate_limiter,
+    require_manager,
+    require_superadmin,
+)
 from app.db.database import DbSession
 from app.models.user import User
 from app.repositories.audit_repo import AuditRepository
@@ -52,7 +57,7 @@ async def create_lead(
     background_tasks: BackgroundTasks,
     lead_service: LeadSrv,
 ):
-    client_ip = request.client.host if request.client else None
+    client_ip = get_client_ip(request)
     lead = await lead_service.create_lead(schema, background_tasks, client_ip=client_ip)
     return {"data": lead}
 

@@ -11,7 +11,7 @@ pydantic==2.6.4
 pydantic-settings==2.2.1
 
 argon2-cffi==23.1.0
-python-jose[cryptography]==3.3.0
+pyjwt[crypto]==2.10.1
 python-multipart==0.0.9
 
 phonenumbers==8.13.32
