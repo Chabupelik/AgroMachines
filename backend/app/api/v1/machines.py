@@ -27,39 +27,29 @@ from app.services.machine_service import MachineService
 router = APIRouter()
 
 
-def get_machine_service(db: DbSession) -> MachineService:
+def get_machine_service(
+    db: DbSession,
+    redis: RedisClient,
+) -> MachineService:
     return MachineService(
         machine_repo=MachineRepository(db),
         audit_repo=AuditRepository(db),
         storage_client=MinioClient(),
+        redis=redis,
     )
+
+
+MachineSrv = Annotated[MachineService, Depends(get_machine_service)]
+CurrentEditor = Annotated[User, Depends(require_editor)]
 
 
 @router.get("/", response_model=PaginatedResponse[MachineResponse])
 async def get_machines(
-    db: DbSession,
-    redis: RedisClient,
+    machine_srv: MachineSrv,
     limit: int = 10,
     offset: int = 0,
 ):
-    cache_key = f"machines:list:{limit}:{offset}"
-    cached_data = await redis.get(cache_key)
-
-    if cached_data:
-        return json.loads(cached_data)
-
-    machine_repo = MachineRepository(db)
-    machines_db = await machine_repo.get_all_descending(limit, offset)
-    total = await machine_repo.count()
-
-    machine_schemas = [MachineResponse.model_validate(m) for m in machines_db]
-    response_data = PaginatedResponse(
-        total=total, limit=limit, offset=offset, data=machine_schemas
-    )
-
-    await redis.setex(cache_key, 3600, response_data.model_dump_json())
-
-    return response_data
+    return await machine_srv.get_machines(limit, offset)
 
 
 @router.post(
@@ -69,15 +59,21 @@ async def get_machines(
     summary="Создать технику (только ред./адм.)",
 )
 async def create_machine(
+    machine_srv: MachineSrv,
+    current_admin: CurrentEditor,
     title: str = Form(...),
     description: str | None = Form(None),
     price: float | None = Form(None),
     specifications: str = Form("{}"),
     files: list[UploadFile] = File(default=[]),
-    machine_srv: Annotated[MachineService, Depends(get_machine_service)] = None,
-    current_admin: Annotated[User, Depends(require_editor)] = None,
 ):
-    specs_dict = json.loads(specifications)
+    try:
+        specs_dict = json.loads(specifications)
+    except json.JSONDecodeError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Некорректный JSON в поле specifications",
+        )
     schema = MachineCreateRequest(
         title=title, description=description, price=price, specifications=specs_dict
     )
@@ -89,6 +85,8 @@ async def create_machine(
 @router.put("/{machine_id}")
 async def update_machine(
     machine_id: int,
+    machine_srv: MachineSrv,
+    current_admin: CurrentEditor,
     title: str | None = Form(None),
     description: str | None = Form(None),
     price: int | None = Form(None),
@@ -96,11 +94,21 @@ async def update_machine(
     is_available: bool | None = Form(None),
     existing_image_urls: str | None = Form(None),
     files: list[UploadFile] = File(default=[]),
-    current_admin: Annotated[User, Depends(require_editor)] = None,
-    machine_srv: Annotated[MachineService, Depends(get_machine_service)] = None,
 ):
-    specs = json.loads(specifications) if specifications else None
-    urls = json.loads(existing_image_urls) if existing_image_urls else None
+    try:
+        specs = json.loads(specifications) if specifications else None
+    except json.JSONDecodeError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Некорректный JSON в поле specifications",
+        )
+    try:
+        urls = json.loads(existing_image_urls) if existing_image_urls else None
+    except json.JSONDecodeError:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Некорректный JSON в поле existing_image_urls",
+        )
     schema = MachineUpdateRequest(
         title=title,
         description=description,
@@ -122,8 +130,8 @@ async def update_machine(
 )
 async def delete_machine(
     machine_id: int,
-    machine_srv: Annotated[MachineService, Depends(get_machine_service)] = None,
-    current_admin: Annotated[User, Depends(require_editor)] = None,
+    machine_srv: MachineSrv,
+    current_admin: CurrentEditor,
 ):
     await machine_srv.delete_machine(machine_id, current_admin.id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
@@ -132,21 +140,7 @@ async def delete_machine(
 @router.get("/{machine_id}", response_model=ResponseOK[MachineResponse])
 async def get_machine_detail(
     machine_id: int,
-    db: DbSession,
-    redis: RedisClient,
+    machine_srv: MachineSrv,
 ):
-    cache_key = f"machine:detail:{machine_id}"
-    cached_machine = await redis.get(cache_key)
-
-    if cached_machine:
-        return {"status": "ok", "data": json.loads(cached_machine)}
-
-    machine_repo = MachineRepository(db)
-    machine = await machine_repo.get_by_id(machine_id)
-    if not machine:
-        raise HTTPException(status_code=404, detail="Такая машина не найдена")
-
-    schema_data = MachineResponse.model_validate(machine)
-    await redis.setex(cache_key, 3600, schema_data.model_dump_json())
-
+    machine = await machine_srv.get_machine_detail(machine_id)
     return {"status": "ok", "data": machine}
