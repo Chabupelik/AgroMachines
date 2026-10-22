@@ -6,6 +6,7 @@ import redis.asyncio as aioredis
 from fastapi import BackgroundTasks, HTTPException, status
 from sqlalchemy import select
 
+from app.integrations.captcha.turnstile import verify_turnstile_token
 from app.models.lead import Lead, LeadStatus
 from app.models.user import User
 from app.repositories.audit_repo import AuditRepository
@@ -31,8 +32,18 @@ class LeadService:
         self.redis = redis
 
     async def create_lead(
-        self, schema: LeadCreateRequest, bg_tasks: BackgroundTasks
+        self,
+        schema: LeadCreateRequest,
+        bg_tasks: BackgroundTasks,
+        client_ip: str | None = None,
     ) -> Lead:
+        is_human = await verify_turnstile_token(schema.captcha_token, client_ip)
+        if not is_human:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Проверка капчи (CF) не прошла. Пожалуйста, попробуйте ещё раз.",
+            )
+
         existing_active_lead = await self.lead_repo.get_active_by_phone(
             schema.client_phone
         )

@@ -4,7 +4,6 @@ from fastapi import (
     APIRouter,
     BackgroundTasks,
     Depends,
-    HTTPException,
     Request,
     Response,
     status,
@@ -12,7 +11,6 @@ from fastapi import (
 
 from app.api.dependencies import rate_limiter, require_manager, require_superadmin
 from app.db.database import DbSession
-from app.integrations.captcha.turnstile import verify_turnstile_token
 from app.models.user import User
 from app.repositories.audit_repo import AuditRepository
 from app.repositories.lead_repo import LeadRepository
@@ -26,6 +24,11 @@ router = APIRouter()
 
 def get_lead_service(db: DbSession) -> LeadService:
     return LeadService(LeadRepository(db), AuditRepository(db))
+
+
+LeadSrv = Annotated[LeadService, Depends(get_lead_service)]
+CurrentManager = Annotated[User, Depends(require_manager)]
+CurrentSuperAdmin = Annotated[User, Depends(require_superadmin)]
 
 
 @router.post(
@@ -47,16 +50,10 @@ async def create_lead(
     request: Request,
     schema: LeadCreateRequest,
     background_tasks: BackgroundTasks,
-    lead_service: Annotated[LeadService, Depends(get_lead_service)],
+    lead_service: LeadSrv,
 ):
-    is_human = await verify_turnstile_token(schema.captcha_token, request.client.host)
-    if not is_human:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Проверка капчи (CF) не прошла. Пожалуйста, попробуйте ещё раз.",
-        )
-
-    lead = await lead_service.create_lead(schema, background_tasks)
+    client_ip = request.client.host if request.client else None
+    lead = await lead_service.create_lead(schema, background_tasks, client_ip=client_ip)
     return {"data": lead}
 
 
@@ -66,8 +63,8 @@ async def create_lead(
     summary="Список заявок (только менеджер/админ)",
 )
 async def get_leads(
-    lead_service: Annotated[LeadService, Depends(get_lead_service)],
-    current_user: Annotated[User, Depends(require_manager)],
+    lead_service: LeadSrv,
+    current_user: CurrentManager,
     limit: int = 10,
     offset: int = 0,
 ):
@@ -84,8 +81,8 @@ async def update_lead_status(
     lead_id: int,
     new_status: str,
     background_tasks: BackgroundTasks,
-    lead_service: Annotated[LeadService, Depends(get_lead_service)],
-    current_user: Annotated[User, Depends(require_manager)],
+    lead_service: LeadSrv,
+    current_user: CurrentManager,
 ):
     lead = await lead_service.update_lead_status(
         lead_id,
@@ -104,8 +101,8 @@ async def update_lead_status(
 )
 async def delete_lead(
     lead_id: int,
-    lead_service: Annotated[LeadService, Depends(get_lead_service)],
-    current_user: Annotated[User, Depends(require_superadmin)],
+    lead_service: LeadSrv,
+    current_user: CurrentSuperAdmin,
 ):
     await lead_service.delete_lead(lead_id, current_user.id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
