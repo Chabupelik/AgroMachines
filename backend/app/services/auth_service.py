@@ -111,6 +111,19 @@ class AuthService:
             await self.blacklist_token(refresh_token)
         if access_token:
             await self.blacklist_token(access_token)
+        elif refresh_token:
+            try:
+                payload = jwt.decode(
+                    refresh_token,
+                    settings.SECRET_KEY,
+                    algorithms=[settings.ALGORITHM],
+                    options={"verify_exp": False},
+                )
+                user_id = payload.get("sub")
+                if user_id:
+                    await self.revoke_user_tokens(user_id)
+            except JWTError:
+                pass
 
     async def refresh_tokens(
         self, refresh_token: str | None
