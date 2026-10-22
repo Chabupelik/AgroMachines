@@ -1,62 +1,75 @@
-from fastapi import APIRouter, Depends, status, BackgroundTasks, Request, HTTPException, Response
-from sqlalchemy.ext.asyncio import AsyncSession
+from typing import Annotated
 
-from app.db.database import get_db
-from app.repositories.lead_repo import LeadRepository
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    HTTPException,
+    Request,
+    Response,
+    status,
+)
+
+from app.api.dependencies import rate_limiter, require_manager, require_superadmin
+from app.db.database import DbSession
+from app.integrations.captcha.turnstile import verify_turnstile_token
+from app.models.user import User
 from app.repositories.audit_repo import AuditRepository
-from app.services.lead_service import LeadService
+from app.repositories.lead_repo import LeadRepository
+from app.schemas.common import PaginatedResponse, ResponseError, ResponseOK
 from app.schemas.lead.requests import LeadCreateRequest
 from app.schemas.lead.responses import LeadResponse
-from app.schemas.common import ResponseOK, ResponseError, PaginatedResponse
-from app.integrations.captcha.turnstile import verify_turnstile_token
-from app.api.dependencies import rate_limiter, require_manager, require_superadmin
-from app.models.user import User
+from app.services.lead_service import LeadService
 
 router = APIRouter()
 
-def get_lead_service(db: AsyncSession = Depends(get_db)) -> LeadService:
+
+def get_lead_service(db: DbSession) -> LeadService:
     return LeadService(LeadRepository(db), AuditRepository(db))
+
 
 @router.post(
     "/",
-    response_model=ResponseOK[LeadResponse], 
+    response_model=ResponseOK[LeadResponse],
     status_code=status.HTTP_201_CREATED,
-    summary="Создать новую заявку на обратный звонок (Открыто для всех)",
+    summary="Создать заявку — публичный эндпоинт",
     responses={
-        400: {"model": ResponseError, "description": "Ошибка капчи или валидации"},
+        400: {"model": ResponseError, "description": "Ошибка верификации"},
         409: {"model": ResponseError, "description": "Дубликат активной заявки"},
-        429: {"model": ResponseError, "description": "Превышен лимит запросов (Rate Limit)"}
+        429: {
+            "model": ResponseError,
+            "description": "Превышен лимит запросов (Rate Limit)",
+        },
     },
-    dependencies=[Depends(rate_limiter)] 
+    dependencies=[Depends(rate_limiter)],
 )
 async def create_lead(
     request: Request,
     schema: LeadCreateRequest,
     background_tasks: BackgroundTasks,
-    lead_service: LeadService = Depends(get_lead_service)
+    lead_service: Annotated[LeadService, Depends(get_lead_service)],
 ):
     is_human = await verify_turnstile_token(schema.captcha_token, request.client.host)
     if not is_human:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Проверка безопасности (капча) не пройдена. Пожалуйста, попробуйте еще раз."
+            detail="Проверка капчи (CF) не прошла. Пожалуйста, попробуйте ещё раз.",
         )
 
     lead = await lead_service.create_lead(schema, background_tasks)
-    
     return {"data": lead}
 
 
 @router.get(
     "/",
     response_model=PaginatedResponse[LeadResponse],
-    summary="Получить список всех заявок (Только Админ/Менеджер)"
+    summary="Список заявок (только менеджер/админ)",
 )
 async def get_leads(
     limit: int = 10,
     offset: int = 0,
-    lead_service: LeadService = Depends(get_lead_service),
-    current_user: User = Depends(require_manager)
+    lead_service: Annotated[LeadService, Depends(get_lead_service)] = None,
+    current_user: Annotated[User, Depends(require_manager)] = None,
 ):
     leads, total = await lead_service.get_all_leads(limit, offset)
     return PaginatedResponse(total=total, limit=limit, offset=offset, data=leads)
@@ -65,30 +78,29 @@ async def get_leads(
 @router.put(
     "/{lead_id}",
     response_model=ResponseOK[LeadResponse],
-    summary="Изменить статус заявки (Только Админ/Менеджер)"
+    summary="Изменить статус заявки (только менеджер/админ)",
 )
 async def update_lead_status(
     lead_id: int,
     new_status: str,
-    lead_service: LeadService = Depends(get_lead_service),
-    current_user: User = Depends(require_manager)
+    lead_service: Annotated[LeadService, Depends(get_lead_service)] = None,
+    current_user: Annotated[User, Depends(require_manager)] = None,
 ):
     lead = await lead_service.update_lead_status(
         lead_id, new_status, current_user.username, current_user.id
     )
-    
     return ResponseOK(data=lead)
 
 
 @router.delete(
     "/{lead_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Удалить заявку (Только Суперадмин)"
+    summary="Удалить заявку (только суперадмин)",
 )
 async def delete_lead(
     lead_id: int,
-    lead_service: LeadService = Depends(get_lead_service),
-    current_user: User = Depends(require_superadmin)
+    lead_service: Annotated[LeadService, Depends(get_lead_service)] = None,
+    current_user: Annotated[User, Depends(require_superadmin)] = None,
 ):
     await lead_service.delete_lead(lead_id, current_user.id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -1,0 +1,14 @@
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP"]
+ignore = [
+    "E501",    # Line too long
+    "E741",    # Ambiguous variable name
+    "B008",    # FastAPI Depends()
+]
+
+[tool.ruff.lint.isort]
+known-first-party = ["app"]
