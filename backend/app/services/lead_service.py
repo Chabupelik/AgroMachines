@@ -7,6 +7,9 @@ from fastapi import BackgroundTasks, HTTPException, status
 from sqlalchemy import select
 
 from app.integrations.captcha.turnstile import verify_turnstile_token
+from app.integrations.telegram.client import edit_telegram_message
+from app.integrations.telegram.formatters import escape_markdown_v2
+from app.integrations.telegram.keyboards import build_lead_inline_keyboard
 from app.models.lead import Lead, LeadStatus
 from app.models.user import User
 from app.repositories.audit_repo import AuditRepository
@@ -127,6 +130,75 @@ class LeadService:
         finally:
             if self.redis:
                 await self.redis.delete(lock_key)
+
+    async def handle_telegram_update(self, update: dict) -> None:
+        callback = update.get("callback_query")
+        if not callback:
+            return
+
+        callback_data = callback.get("data", "")
+        if not callback_data.startswith("take_lead_"):
+            return
+
+        try:
+            lead_id = int(callback_data.split("_")[2])
+        except (IndexError, ValueError):
+            return
+
+        tg_user = callback.get("from", {})
+        username = tg_user.get("username") or tg_user.get("first_name") or "Manager"
+
+        message = callback.get("message", {})
+        message_id = message.get("message_id")
+        old_text = message.get("text", "")
+        if not message_id or not old_text:
+            return
+
+        try:
+            result = await self.take_lead_from_tg(lead_id, username)
+        except Exception:
+            result = "NOT_FOUND"
+
+        safe_username = escape_markdown_v2(username)
+
+        base_text = old_text
+        for separator in ["\n\n👨‍💼", "\n\n⚠️", "\n\n❌", "\n\n??", "\n\n?"]:
+            if separator in base_text:
+                base_text = base_text.split(separator)[0]
+
+        escaped_base = escape_markdown_v2(base_text)
+
+        if result == "SUCCESS":
+            new_text = (
+                f"{escaped_base}\n\n"
+                f"👨‍💼 *Заявка взята в работу менеджером @{safe_username}*"
+            )
+            await edit_telegram_message(
+                message_id=message_id, text=new_text, reply_markup=None
+            )
+        elif result == "ALREADY_TAKEN":
+            new_text = (
+                f"{escaped_base}\n\n"
+                f"⚠️ *Ошибка: заявка уже обрабатывается другим менеджером\\.*"
+            )
+            await edit_telegram_message(
+                message_id=message_id, text=new_text, reply_markup=None
+            )
+        elif result == "TG_NOT_LINKED":
+            keyboard = build_lead_inline_keyboard(lead_id)
+            new_text = (
+                f"{escaped_base}\n\n"
+                f"❌ *Ошибка: @{safe_username} не привязан к системе\\. "
+                f"Суперадмин должен добавить Telegram username в профиль\\.*"
+            )
+            await edit_telegram_message(
+                message_id=message_id, text=new_text, reply_markup=keyboard
+            )
+        else:
+            new_text = f"{escaped_base}\n\n❌ *Заявка не найдена или уже удалена\\.*"
+            await edit_telegram_message(
+                message_id=message_id, text=new_text, reply_markup=None
+            )
 
     async def get_all_leads(self, limit: int, offset: int):
         leads = await self.lead_repo.get_all_descending(limit, offset)
