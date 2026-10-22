@@ -50,6 +50,8 @@ class LeadService:
             user_id=None,
         )
 
+        await self.lead_repo.session.commit()
+
         bg_tasks.add_task(
             task_notify_new_lead,
             lead_id=saved_lead.id,
@@ -98,6 +100,7 @@ class LeadService:
                     entity_id=lead_id,
                     user_id=user.id,
                 )
+                await self.lead_repo.session.commit()
                 return "SUCCESS"
 
             lead = await self.lead_repo.get_by_id(lead_id)
@@ -147,15 +150,15 @@ class LeadService:
         elif new_status == LeadStatus.NEW:
             lead.processed_by = None
 
-        await self.lead_repo.session.commit()
-        await self.lead_repo.session.refresh(lead)
-
         await self.audit_repo.log_action(
             action=f"CHANGE_STATUS_FROM_{old_status}_TO_{new_status}",
             entity_type="lead",
             entity_id=lead_id,
             user_id=user_id,
         )
+
+        await self.lead_repo.session.commit()
+        await self.lead_repo.session.refresh(lead)
 
         if lead.tg_message_id:
             from app.integrations.telegram.client import edit_telegram_message
@@ -208,3 +211,4 @@ class LeadService:
             entity_id=lead_id,
             user_id=user_id,
         )
+        await self.lead_repo.session.commit()

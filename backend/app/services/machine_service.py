@@ -51,6 +51,7 @@ class MachineService:
             entity_id=saved_machine.id,
             user_id=user_id,
         )
+        await self.machine_repo.session.commit()
         return saved_machine
 
     async def update_machine(
@@ -98,15 +99,15 @@ class MachineService:
         if schema.is_available is not None:
             machine.is_available = schema.is_available
 
-        await self.machine_repo.session.commit()
-        await self.machine_repo.session.refresh(machine)
-
         await self.audit_repo.log_action(
             action="UPDATE_MACHINE",
             entity_type="machine",
             entity_id=machine.id,
             user_id=user_id,
         )
+
+        await self.machine_repo.session.commit()
+        await self.machine_repo.session.refresh(machine)
         return machine
 
     async def delete_machine(self, machine_id: int, user_id: uuid.UUID):
@@ -131,3 +132,4 @@ class MachineService:
             entity_id=machine_id,
             user_id=user_id,
         )
+        await self.machine_repo.session.commit()

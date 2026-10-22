@@ -68,7 +68,9 @@ class AuthService:
             role=schema.role,
             telegram_username=tg_username,
         )
-        return await self.user_repo.add(new_user)
+        user = await self.user_repo.add(new_user)
+        await self.user_repo.session.commit()
+        return user
 
     async def update_user(
         self, user_id: UUID, schema: UserUpdateRequest, current_user_id: UUID
@@ -137,6 +139,7 @@ class AuthService:
             )
 
         await self.user_repo.delete(user)
+        await self.user_repo.session.commit()
 
     async def get_all_users(self) -> list[User]:
         return await self.user_repo.get_all_users()

@@ -31,13 +31,11 @@ class LeadRepository(BaseRepository[Lead]):
             .where(self.model.id == lead_id, self.model.status == old_status)
             .values(
                 status=new_status,
-                processed_by=processed_by,  # <-- Записываем имя менеджера
+                processed_by=processed_by,
                 updated_at=datetime.now(UTC),
             )
         )
         result = await self.session.execute(query)
-        await self.session.commit()
-
         return result.rowcount > 0
 
     async def get_all_descending(self, limit: int = 10, offset: int = 0) -> list[Lead]:
