@@ -30,6 +30,10 @@ def get_auth_service(db: DbSession, redis: RedisClient) -> AuthService:
 AuthSrv = Annotated[AuthService, Depends(get_auth_service)]
 CurrentSuperAdmin = Annotated[User, Depends(require_superadmin)]
 OAuth2Form = Annotated[OAuth2PasswordRequestForm, Depends()]
+RefreshTokenCookie = Annotated[str | None, Cookie()]
+BearerCredentials = Annotated[
+    HTTPAuthorizationCredentials | None, Depends(bearer_scheme)
+]
 
 
 def set_refresh_cookie(response: Response, refresh_token: str) -> None:
@@ -71,7 +75,7 @@ async def login(
 async def refresh_token(
     response: Response,
     auth_srv: AuthSrv,
-    refresh_token: Annotated[str | None, Cookie()] = None,
+    refresh_token: RefreshTokenCookie = None,
 ):
     access_token, new_refresh, role = await auth_srv.refresh_tokens(refresh_token)
     set_refresh_cookie(response, new_refresh)
@@ -139,10 +143,8 @@ async def delete_user(
 async def logout(
     response: Response,
     auth_srv: AuthSrv,
-    credentials: Annotated[
-        HTTPAuthorizationCredentials | None, Depends(bearer_scheme)
-    ] = None,
-    refresh_token: Annotated[str | None, Cookie()] = None,
+    credentials: BearerCredentials = None,
+    refresh_token: RefreshTokenCookie = None,
 ):
     access_token = credentials.credentials if credentials else None
     await auth_srv.logout(refresh_token=refresh_token, access_token=access_token)
