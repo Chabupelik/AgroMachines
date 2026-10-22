@@ -7,6 +7,7 @@ from fastapi import FastAPI, Request, Response, status
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from pydantic import ValidationError
 from sqlalchemy import text
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -93,6 +94,19 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
 
 @app.exception_handler(RequestValidationError)
 async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    errors = [
+        f"[{' -> '.join(str(x) for x in e['loc'])}]: {e['msg']}" for e in exc.errors()
+    ]
+    return JSONResponse(
+        status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+        content=ResponseError(
+            message="Ошибка валидации входных данных", details=errors
+        ).model_dump(),
+    )
+
+
+@app.exception_handler(ValidationError)
+async def pydantic_validation_exception_handler(request: Request, exc: ValidationError):
     errors = [
         f"[{' -> '.join(str(x) for x in e['loc'])}]: {e['msg']}" for e in exc.errors()
     ]

@@ -69,6 +69,11 @@ async def create_machine(
 ):
     try:
         specs_dict = json.loads(specifications)
+        if not isinstance(specs_dict, dict):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Поле specifications должно быть JSON-объектом",
+            )
     except json.JSONDecodeError:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -89,26 +94,42 @@ async def update_machine(
     current_admin: CurrentEditor,
     title: str | None = Form(None),
     description: str | None = Form(None),
-    price: int | None = Form(None),
+    price: float | None = Form(None),
     specifications: str | None = Form(None),
     is_available: bool | None = Form(None),
     existing_image_urls: str | None = Form(None),
     files: list[UploadFile] = File(default=[]),
 ):
-    try:
-        specs = json.loads(specifications) if specifications else None
-    except json.JSONDecodeError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Некорректный JSON в поле specifications",
-        )
-    try:
-        urls = json.loads(existing_image_urls) if existing_image_urls else None
-    except json.JSONDecodeError:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Некорректный JSON в поле existing_image_urls",
-        )
+    specs = None
+    if specifications:
+        try:
+            specs = json.loads(specifications)
+            if not isinstance(specs, dict):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Поле specifications должно быть JSON-объектом",
+                )
+        except json.JSONDecodeError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Некорректный JSON в поле specifications",
+            )
+
+    urls = None
+    if existing_image_urls:
+        try:
+            urls = json.loads(existing_image_urls)
+            if not isinstance(urls, list):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Поле existing_image_urls должно быть JSON-списком",
+                )
+        except json.JSONDecodeError:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Некорректный JSON в поле existing_image_urls",
+            )
+
     schema = MachineUpdateRequest(
         title=title,
         description=description,
