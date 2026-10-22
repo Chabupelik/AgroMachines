@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import uuid
 
 from fastapi import HTTPException, UploadFile, status
@@ -8,6 +9,8 @@ from app.models.machine import Machine
 from app.repositories.audit_repo import AuditRepository
 from app.repositories.machine_repo import MachineRepository
 from app.schemas.machine.requests import MachineCreateRequest, MachineUpdateRequest
+
+logger = logging.getLogger(__name__)
 
 
 class MachineService:
@@ -75,7 +78,9 @@ class MachineService:
             try:
                 self.storage_client.delete_file(old_url)
             except Exception as e:
-                print(f"⚠️ Ошибка удаления старого файла {old_url} из MinIO: {e}")
+                logger.warning(
+                    "Ошибка удаления старого файла %s из MinIO: %s", old_url, e
+                )
 
         new_image_urls = []
         if files:

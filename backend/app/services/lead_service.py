@@ -1,3 +1,4 @@
+import logging
 import uuid
 
 import redis.asyncio as aioredis
@@ -10,6 +11,8 @@ from app.repositories.audit_repo import AuditRepository
 from app.repositories.lead_repo import LeadRepository
 from app.schemas.lead.requests import LeadCreateRequest
 from app.workers.telegram_tasks import task_notify_new_lead
+
+logger = logging.getLogger(__name__)
 
 
 class LeadService:
@@ -183,8 +186,12 @@ class LeadService:
                     await edit_telegram_message(
                         message_id=lead.tg_message_id, text=new_text, reply_markup=None
                     )
-                except Exception:
-                    pass  # не роняем запрос из-за ошибки Telegram
+                except Exception as e:
+                    logger.warning(
+                        "Не удалось обновить статус заявки %s в Telegram: %s",
+                        lead.id,
+                        e,
+                    )
 
         return lead
 

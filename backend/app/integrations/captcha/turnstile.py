@@ -1,6 +1,11 @@
+import logging
+
 import httpx
-from fastapi import HTTPException, status
+
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
+
 
 async def verify_turnstile_token(token: str, ip: str | None = None) -> bool:
     if not token:
@@ -9,7 +14,7 @@ async def verify_turnstile_token(token: str, ip: str | None = None) -> bool:
     url = "https://challenges.cloudflare.com/turnstile/v0/siteverify"
     payload = {
         "secret": settings.TURNSTILE_SECRET_KEY,
-        "response": token
+        "response": token,
     }
     if ip:
         payload["remoteip"] = ip
@@ -22,5 +27,5 @@ async def verify_turnstile_token(token: str, ip: str | None = None) -> bool:
                 return result.get("success", False)
             return False
         except Exception as e:
-            print(f"❌ Cloudflare Turnstile Verification Failed: {e}")
+            logger.error("Cloudflare Turnstile Verification Failed: %s", e)
             return False
