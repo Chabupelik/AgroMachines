@@ -83,7 +83,7 @@
 
 1. Скопируйте шаблон `.env` и заполните секреты:
    ```bash
-   cp backend/.env.example backend/.env
+   cp .env.example .env
    ```
 
    Ключевые переменные:
@@ -109,34 +109,22 @@
    MINIO_BUCKET_NAME=agroprom-media
    ```
 
-### Запуск в режиме разработки
+### Запуск и сборка
 
 ```bash
-# Запустить все сервисы (PostgreSQL, Redis, MinIO, FastAPI)
-cd backend
-docker-compose up -d
+# Запустить все сервисы (PostgreSQL, Redis, MinIO, FastAPI + Vue 3 Frontend)
+docker compose up -d --build
 
 # Применить миграции БД
-docker-compose exec app alembic upgrade head
+docker compose exec app alembic upgrade head
+```
 
-# Фронтенд (Dev-сервер)
+### Локальная разработка фронтенда (HMR / Hot Reload)
+
+```bash
 cd frontend
 npm install
 npm run dev
-```
-
-### Production-деплой
-
-```bash
-# Бэкенд (Docker Compose)
-cd backend
-docker-compose -f docker-compose.yml up -d --build
-
-# Фронтенд (статический бандл)
-cd frontend
-npm install
-npm run build
-# Готовый бандл в ./dist/ — скопировать на сервер под Nginx
 ```
 
 ---
@@ -145,29 +133,33 @@ npm run build
 
 ```text
 AgroMachines/
-├── backend/
-│   ├── docker-compose.yml          # Оркестрация контейнеров (Postgres, Redis, MinIO, App)
-│   ├── Dockerfile                  # Образ Python-приложения
-│   ├── requirements.txt            # Зависимости Python
-│   ├── backup.sh                   # Скрипт резервного копирования БД и MinIO
-│   ├── alembic/                    # Миграции БД
-│   └── app/
-│       ├── main.py                 # Точка входа FastAPI
-│       ├── api/v1/                 # Роутеры: auth, leads, machines, telegram, audit
-│       ├── core/                   # Config (Pydantic Settings), Security (JWT, Argon2)
-│       ├── db/                     # SQLAlchemy engine, Redis pool
-│       ├── models/                 # ORM-модели: User, Machine, Lead, AuditLog
-│       ├── repositories/           # Слой запросов к БД (Repository Pattern)
-│       ├── schemas/                # Pydantic DTO (requests / responses)
-│       ├── services/               # Бизнес-логика
-│       └── workers/                # Фоновые задачи (отправка в Telegram)
+├── docker-compose.yml          # Оркестрация сервисов (Postgres, Redis, MinIO, App)
+├── Dockerfile                  # Multi-stage сборка: фронтенд (Node 22) + бэкенд (Python 3.12)
+├── .dockerignore               # Оптимизация контекста Docker-сборки
+├── .gitignore                  # Глобальные правила игнорирования Git
+├── .env.example                # Шаблон конфигурации переменных окружения
+├── backup.sh                   # Скрипт автоматического бэкапа БД и MinIO
 │
-└── frontend/                       # Vue 3 / Vite SPA
+├── backend/
+│   ├── requirements.txt        # Зависимости Python
+│   ├── alembic/                # Миграции БД
+│   └── app/
+│       ├── main.py             # Точка входа FastAPI (API + раздача SPA)
+│       ├── api/v1/             # Роутеры: auth, leads, machines, telegram, audit
+│       ├── core/               # Config (Pydantic Settings), Security (JWT, Argon2)
+│       ├── db/                 # SQLAlchemy engine, Redis pool
+│       ├── models/             # ORM-модели: User, Machine, Lead, AuditLog
+│       ├── repositories/       # Слой запросов к БД (Repository Pattern)
+│       ├── schemas/            # Pydantic DTO (requests / responses)
+│       ├── services/           # Бизнес-логика
+│       └── workers/            # Фоновые задачи (отправка в Telegram)
+│
+└── frontend/                   # Vue 3 / Vite SPA
     ├── src/
-    │   ├── views/                  # Страницы: каталог, карточка, форма, админка
-    │   ├── components/             # UI-компоненты
-    │   ├── stores/                 # Pinia (auth, catalog, leads)
-    │   └── router/                 # Vue Router
+    │   ├── views/              # Страницы: каталог, карточка, форма, админка
+    │   ├── components/         # UI-компоненты
+    │   ├── stores/             # Pinia (auth, catalog, leads)
+    │   └── router/             # Vue Router
     └── vite.config.js
 ```
 

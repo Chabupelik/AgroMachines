@@ -15,7 +15,6 @@ services:
       timeout: 5s
       retries: 5
 
-  # 2. Redis
   redis:
     image: redis:7-alpine
     container_name: agromachines_redis
@@ -50,7 +49,9 @@ services:
       retries: 5
 
   app:
-    build: .
+    build:
+      context: .
+      dockerfile: Dockerfile
     container_name: agromachines_app
     restart: always
     ports:
@@ -58,7 +59,7 @@ services:
     env_file:
       - .env
     volumes:
-      - .:/code
+      - ./backend:/code
     depends_on:
       db:
         condition: service_healthy
