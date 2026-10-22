@@ -22,13 +22,18 @@ def get_auth_service(db: DbSession) -> AuthService:
     return AuthService(UserRepository(db))
 
 
+AuthSrv = Annotated[AuthService, Depends(get_auth_service)]
+CurrentSuperAdmin = Annotated[User, Depends(require_superadmin)]
+OAuth2Form = Annotated[OAuth2PasswordRequestForm, Depends()]
+
+
 @router.post(
     "/login", response_model=TokenResponse, dependencies=[Depends(rate_limiter)]
 )
 async def login(
     response: Response,
-    form_data: Annotated[OAuth2PasswordRequestForm, Depends()],
-    auth_srv: Annotated[AuthService, Depends(get_auth_service)],
+    form_data: OAuth2Form,
+    auth_srv: AuthSrv,
 ):
     user = await auth_srv.authenticate_user(form_data.username, form_data.password)
     access_token, refresh_token = auth_srv.create_tokens(user.id, user.role)
@@ -49,7 +54,7 @@ async def login(
 async def refresh_token(
     request: Request,
     response: Response,
-    auth_srv: Annotated[AuthService, Depends(get_auth_service)],
+    auth_srv: AuthSrv,
 ):
     """Rolling Refresh: проверяет refresh-токен и выдаёт новый."""
     token = request.cookies.get("refresh_token")
@@ -91,8 +96,8 @@ async def refresh_token(
 )
 async def create_user(
     schema: UserCreateRequest,
-    auth_srv: Annotated[AuthService, Depends(get_auth_service)],
-    current_admin: Annotated[User, Depends(require_superadmin)],
+    auth_srv: AuthSrv,
+    current_admin: CurrentSuperAdmin,
 ):
     new_user = await auth_srv.create_user(schema)
     return {"data": new_user}
@@ -106,8 +111,8 @@ async def create_user(
 async def update_user(
     user_id: UUID,
     schema: UserUpdateRequest,
-    auth_srv: Annotated[AuthService, Depends(get_auth_service)],
-    current_admin: Annotated[User, Depends(require_superadmin)],
+    auth_srv: AuthSrv,
+    current_admin: CurrentSuperAdmin,
 ):
     updated_user = await auth_srv.update_user(user_id, schema, current_admin.id)
     return {"data": updated_user}
@@ -119,8 +124,8 @@ async def update_user(
     summary="Список пользователей (только суперадмин)",
 )
 async def get_users(
-    auth_srv: Annotated[AuthService, Depends(get_auth_service)],
-    current_admin: Annotated[User, Depends(require_superadmin)],
+    auth_srv: AuthSrv,
+    current_admin: CurrentSuperAdmin,
 ):
     all_users = await auth_srv.get_all_users()
     return {"data": all_users}
@@ -133,8 +138,8 @@ async def get_users(
 )
 async def delete_user(
     user_id: UUID,
-    auth_srv: Annotated[AuthService, Depends(get_auth_service)],
-    current_admin: Annotated[User, Depends(require_superadmin)],
+    auth_srv: AuthSrv,
+    current_admin: CurrentSuperAdmin,
 ):
     await auth_srv.delete_user(user_id, current_admin.id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
