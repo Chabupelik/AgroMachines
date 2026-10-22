@@ -1,8 +1,12 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Request, Response, status
-from fastapi.security import OAuth2PasswordRequestForm
+from fastapi import APIRouter, Cookie, Depends, Response, status
+from fastapi.security import (
+    HTTPAuthorizationCredentials,
+    HTTPBearer,
+    OAuth2PasswordRequestForm,
+)
 
 from app.api.dependencies import rate_limiter, require_superadmin
 from app.core.config import settings
@@ -16,6 +20,7 @@ from app.schemas.common import ResponseOK
 from app.services.auth_service import AuthService
 
 router = APIRouter()
+bearer_scheme = HTTPBearer(auto_error=False)
 
 
 def get_auth_service(db: DbSession, redis: RedisClient) -> AuthService:
@@ -64,12 +69,11 @@ async def login(
 
 @router.post("/refresh", response_model=TokenResponse)
 async def refresh_token(
-    request: Request,
     response: Response,
     auth_srv: AuthSrv,
+    refresh_token: Annotated[str | None, Cookie()] = None,
 ):
-    token = request.cookies.get("refresh_token")
-    access_token, new_refresh, role = await auth_srv.refresh_tokens(token)
+    access_token, new_refresh, role = await auth_srv.refresh_tokens(refresh_token)
     set_refresh_cookie(response, new_refresh)
     return TokenResponse(access_token=access_token, role=role)
 
@@ -133,16 +137,14 @@ async def delete_user(
 
 @router.post("/logout")
 async def logout(
-    request: Request,
     response: Response,
     auth_srv: AuthSrv,
+    credentials: Annotated[
+        HTTPAuthorizationCredentials | None, Depends(bearer_scheme)
+    ] = None,
+    refresh_token: Annotated[str | None, Cookie()] = None,
 ):
-    refresh_token = request.cookies.get("refresh_token")
-    auth_header = request.headers.get("Authorization")
-    access_token = None
-    if auth_header and auth_header.startswith("Bearer "):
-        access_token = auth_header[7:]
-
+    access_token = credentials.credentials if credentials else None
     await auth_srv.logout(refresh_token=refresh_token, access_token=access_token)
     delete_refresh_cookie(response)
     return {"status": "ok", "message": "Успешный выход"}
