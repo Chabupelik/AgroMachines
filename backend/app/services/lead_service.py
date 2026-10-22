@@ -7,9 +7,6 @@ from fastapi import BackgroundTasks, HTTPException, status
 from sqlalchemy import select
 
 from app.integrations.captcha.turnstile import verify_turnstile_token
-from app.integrations.telegram.client import edit_telegram_message
-from app.integrations.telegram.formatters import escape_markdown_v2
-from app.integrations.telegram.keyboards import build_lead_inline_keyboard
 from app.models.lead import Lead, LeadStatus
 from app.models.user import User
 from app.repositories.audit_repo import AuditRepository
@@ -18,6 +15,7 @@ from app.schemas.lead.requests import LeadCreateRequest
 from app.workers.telegram_tasks import (
     task_notify_new_lead,
     task_update_lead_status_message,
+    task_update_lead_taken_message,
 )
 
 logger = logging.getLogger(__name__)
@@ -159,46 +157,13 @@ class LeadService:
         except Exception:
             result = "NOT_FOUND"
 
-        safe_username = escape_markdown_v2(username)
-
-        base_text = old_text
-        for separator in ["\n\n👨‍💼", "\n\n⚠️", "\n\n❌", "\n\n??", "\n\n?"]:
-            if separator in base_text:
-                base_text = base_text.split(separator)[0]
-
-        escaped_base = escape_markdown_v2(base_text)
-
-        if result == "SUCCESS":
-            new_text = (
-                f"{escaped_base}\n\n"
-                f"👨‍💼 *Заявка взята в работу менеджером @{safe_username}*"
-            )
-            await edit_telegram_message(
-                message_id=message_id, text=new_text, reply_markup=None
-            )
-        elif result == "ALREADY_TAKEN":
-            new_text = (
-                f"{escaped_base}\n\n"
-                f"⚠️ *Ошибка: заявка уже обрабатывается другим менеджером\\.*"
-            )
-            await edit_telegram_message(
-                message_id=message_id, text=new_text, reply_markup=None
-            )
-        elif result == "TG_NOT_LINKED":
-            keyboard = build_lead_inline_keyboard(lead_id)
-            new_text = (
-                f"{escaped_base}\n\n"
-                f"❌ *Ошибка: @{safe_username} не привязан к системе\\. "
-                f"Суперадмин должен добавить Telegram username в профиль\\.*"
-            )
-            await edit_telegram_message(
-                message_id=message_id, text=new_text, reply_markup=keyboard
-            )
-        else:
-            new_text = f"{escaped_base}\n\n❌ *Заявка не найдена или уже удалена\\.*"
-            await edit_telegram_message(
-                message_id=message_id, text=new_text, reply_markup=None
-            )
+        await task_update_lead_taken_message(
+            message_id=message_id,
+            old_text=old_text,
+            username=username,
+            result=result,
+            lead_id=lead_id,
+        )
 
     async def get_all_leads(self, limit: int, offset: int):
         leads = await self.lead_repo.get_all_descending(limit, offset)

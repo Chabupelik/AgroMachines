@@ -74,3 +74,54 @@ async def task_update_lead_status_message(
                 lead_id,
                 e,
             )
+
+
+async def task_update_lead_taken_message(
+    message_id: int,
+    old_text: str,
+    username: str,
+    result: str,
+    lead_id: int,
+) -> None:
+    safe_username = escape_markdown_v2(username)
+
+    base_text = old_text
+    for separator in ["\n\n👨‍💼", "\n\n⚠️", "\n\n❌", "\n\n??", "\n\n?"]:
+        if separator in base_text:
+            base_text = base_text.split(separator)[0]
+
+    escaped_base = escape_markdown_v2(base_text)
+
+    if result == "SUCCESS":
+        new_text = (
+            f"{escaped_base}\n\n"
+            f"👨‍💼 *Заявка взята в работу менеджером @{safe_username}*"
+        )
+        reply_markup = None
+    elif result == "ALREADY_TAKEN":
+        new_text = (
+            f"{escaped_base}\n\n"
+            f"⚠️ *Ошибка: заявка уже обрабатывается другим менеджером\\.*"
+        )
+        reply_markup = None
+    elif result == "TG_NOT_LINKED":
+        reply_markup = build_lead_inline_keyboard(lead_id)
+        new_text = (
+            f"{escaped_base}\n\n"
+            f"❌ *Ошибка: @{safe_username} не привязан к системе\\. "
+            f"Суперадмин должен добавить Telegram username в профиль\\.*"
+        )
+    else:
+        new_text = f"{escaped_base}\n\n❌ *Заявка не найдена или уже удалена\\.*"
+        reply_markup = None
+
+    try:
+        await edit_telegram_message(
+            message_id=message_id, text=new_text, reply_markup=reply_markup
+        )
+    except Exception as e:
+        logger.warning(
+            "Не удалось обновить сообщение заявки %s в Telegram: %s",
+            lead_id,
+            e,
+        )
