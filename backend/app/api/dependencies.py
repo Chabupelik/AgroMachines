@@ -16,6 +16,7 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 async def get_current_user(
     token: Annotated[str, Depends(oauth2_scheme)],
     db: DbSession,
+    redis: RedisClient,
 ) -> User:
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
@@ -29,11 +30,20 @@ async def get_current_user(
         )
         user_id: str = payload.get("sub")
         token_type: str = payload.get("type")
+        jti: str | None = payload.get("jti")
+        token_iat: int | None = payload.get("iat")
 
         if user_id is None or token_type != "access":
             raise credentials_exception
 
     except JWTError:
+        raise credentials_exception
+
+    if jti and await redis.exists(f"token_blacklist:{jti}"):
+        raise credentials_exception
+
+    revoked_ts = await redis.get(f"user_revoked:{user_id}")
+    if revoked_ts is not None and (token_iat is None or token_iat < int(revoked_ts)):
         raise credentials_exception
 
     user_repo = UserRepository(db)

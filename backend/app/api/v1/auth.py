@@ -7,6 +7,7 @@ from fastapi.security import OAuth2PasswordRequestForm
 from app.api.dependencies import rate_limiter, require_superadmin
 from app.core.config import settings
 from app.db.database import DbSession
+from app.db.redis import RedisClient
 from app.models.user import User
 from app.repositories.user_repo import UserRepository
 from app.schemas.auth.requests import UserCreateRequest, UserUpdateRequest
@@ -17,8 +18,8 @@ from app.services.auth_service import AuthService
 router = APIRouter()
 
 
-def get_auth_service(db: DbSession) -> AuthService:
-    return AuthService(UserRepository(db))
+def get_auth_service(db: DbSession, redis: RedisClient) -> AuthService:
+    return AuthService(UserRepository(db), redis=redis)
 
 
 AuthSrv = Annotated[AuthService, Depends(get_auth_service)]
@@ -131,6 +132,17 @@ async def delete_user(
 
 
 @router.post("/logout")
-async def logout(response: Response):
+async def logout(
+    request: Request,
+    response: Response,
+    auth_srv: AuthSrv,
+):
+    refresh_token = request.cookies.get("refresh_token")
+    auth_header = request.headers.get("Authorization")
+    access_token = None
+    if auth_header and auth_header.startswith("Bearer "):
+        access_token = auth_header[7:]
+
+    await auth_srv.logout(refresh_token=refresh_token, access_token=access_token)
     delete_refresh_cookie(response)
     return {"status": "ok", "message": "Успешный выход"}

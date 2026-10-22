@@ -1,6 +1,7 @@
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from uuid import UUID, uuid4
 
+import redis.asyncio as aioredis
 from fastapi import HTTPException, status
 from jose import JWTError, jwt
 
@@ -12,8 +13,13 @@ from app.schemas.auth.requests import UserCreateRequest, UserUpdateRequest
 
 
 class AuthService:
-    def __init__(self, user_repo: UserRepository):
+    def __init__(
+        self,
+        user_repo: UserRepository,
+        redis: aioredis.Redis | None = None,
+    ):
         self.user_repo = user_repo
+        self.redis = redis
 
     async def authenticate_user(self, username: str, password: str) -> User:
         user = await self.user_repo.get_by_username(username)
@@ -52,6 +58,60 @@ class AuthService:
         access_token, refresh_token = self.create_tokens(user.id, role_str)
         return access_token, refresh_token, user.role
 
+    async def is_token_blacklisted(self, jti: str | None) -> bool:
+        if not self.redis or not jti:
+            return False
+        return bool(await self.redis.exists(f"token_blacklist:{jti}"))
+
+    async def blacklist_token(self, token_str: str | None) -> None:
+        if not self.redis or not token_str:
+            return
+        try:
+            payload = jwt.decode(
+                token_str,
+                settings.SECRET_KEY,
+                algorithms=[settings.ALGORITHM],
+                options={"verify_exp": False},
+            )
+            jti = payload.get("jti")
+            exp = payload.get("exp")
+            if not jti or not exp:
+                return
+
+            now_ts = int(datetime.now(UTC).timestamp())
+            ttl = int(exp) - now_ts
+            if ttl > 0:
+                await self.redis.setex(f"token_blacklist:{jti}", ttl, "revoked")
+        except JWTError:
+            pass
+
+    async def revoke_user_tokens(self, user_id: UUID | str) -> None:
+        if not self.redis:
+            return
+        ttl = settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60
+        now_ts = int(datetime.now(UTC).timestamp())
+        await self.redis.setex(f"user_revoked:{user_id}", ttl, str(now_ts))
+
+    async def is_user_token_revoked(
+        self, user_id: UUID | str, token_iat: int | None
+    ) -> bool:
+        if not self.redis:
+            return False
+        revoked_ts = await self.redis.get(f"user_revoked:{user_id}")
+        if revoked_ts is None:
+            return False
+        if token_iat is None:
+            return True
+        return token_iat < int(revoked_ts)
+
+    async def logout(
+        self, refresh_token: str | None = None, access_token: str | None = None
+    ) -> None:
+        if refresh_token:
+            await self.blacklist_token(refresh_token)
+        if access_token:
+            await self.blacklist_token(access_token)
+
     async def refresh_tokens(
         self, refresh_token: str | None
     ) -> tuple[str, str, RoleEnum]:
@@ -77,11 +137,18 @@ class AuthService:
                 detail="Неверный тип токена",
             )
 
+        jti = payload.get("jti")
+        if jti and await self.is_token_blacklisted(jti):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Токен отозван",
+            )
+
         user_id_str = payload.get("sub")
         if not user_id_str:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Некорректный идентификатор пользователя в токене",
+                detail="Некорректный идентификатор пользователя в токенe",
             )
 
         try:
@@ -92,12 +159,21 @@ class AuthService:
                 detail="Некорректный формат идентификатора пользователя",
             )
 
+        token_iat = payload.get("iat")
+        if await self.is_user_token_revoked(user_id, token_iat):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Сессия пользователя была отозвана",
+            )
+
         user = await self.user_repo.get_by_id(user_id)
         if not user or not user.is_active:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Пользователь не найден или неактивен",
             )
+
+        await self.blacklist_token(refresh_token)
 
         role_str = user.role.value if hasattr(user.role, "value") else str(user.role)
         new_access, new_refresh = self.create_tokens(user.id, role_str)
@@ -161,6 +237,16 @@ class AuthService:
                 detail="Вы не можете забрать роль суперадминистратора у самого себя.",
             )
 
+        is_security_change = (
+            (schema.is_active is False)
+            or (schema.role is not None and schema.role != user.role)
+            or (
+                hasattr(schema, "password")
+                and schema.password is not None
+                and schema.password.strip()
+            )
+        )
+
         if schema.is_active is not None:
             user.is_active = schema.is_active
         if schema.role is not None:
@@ -179,6 +265,10 @@ class AuthService:
 
         await self.user_repo.session.commit()
         await self.user_repo.session.refresh(user)
+
+        if is_security_change:
+            await self.revoke_user_tokens(user.id)
+
         return user
 
     async def delete_user(self, user_id: UUID, current_admin_id: UUID):
@@ -200,6 +290,7 @@ class AuthService:
 
         await self.user_repo.delete(user)
         await self.user_repo.session.commit()
+        await self.revoke_user_tokens(user_id)
 
     async def get_all_users(self) -> list[User]:
         return await self.user_repo.get_all_users()
