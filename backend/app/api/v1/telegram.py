@@ -7,6 +7,7 @@ from app.db.database import DbSession
 from app.db.redis import RedisClient
 from app.integrations.telegram.client import edit_telegram_message
 from app.integrations.telegram.formatters import escape_markdown_v2
+from app.integrations.telegram.keyboards import build_lead_inline_keyboard
 from app.repositories.audit_repo import AuditRepository
 from app.repositories.lead_repo import LeadRepository
 from app.services.lead_service import LeadService
@@ -60,14 +61,14 @@ async def telegram_webhook(
         safe_username = escape_markdown_v2(username)
 
         base_text = old_text
-        for separator in ["\n\n??", "\n\n??", "\n\n?", "\n\n?"]:
+        for separator in ["\n\n👨‍💼", "\n\n⚠️", "\n\n❌", "\n\n??", "\n\n?"]:
             if separator in base_text:
                 base_text = base_text.split(separator)[0]
 
         if result == "SUCCESS":
             new_text = (
                 f"{escape_markdown_v2(base_text)}\n\n"
-                f"?? *Заявка взята в работу менеджером @{safe_username}*"
+                f"👨‍💼 *Заявка взята в работу менеджером @{safe_username}*"
             )
             await edit_telegram_message(
                 message_id=message_id, text=new_text, reply_markup=None
@@ -76,19 +77,17 @@ async def telegram_webhook(
         elif result == "ALREADY_TAKEN":
             new_text = (
                 f"{escape_markdown_v2(base_text)}\n\n"
-                f"?? *Ошибка: заявка уже обрабатывается другим менеджером\\.*"
+                f"⚠️ *Ошибка: заявка уже обрабатывается другим менеджером\\.*"
             )
             await edit_telegram_message(
                 message_id=message_id, text=new_text, reply_markup=None
             )
 
         elif result == "TG_NOT_LINKED":
-            from app.integrations.telegram.keyboards import build_lead_inline_keyboard
-
             keyboard = build_lead_inline_keyboard(lead_id)
             new_text = (
                 f"{escape_markdown_v2(base_text)}\n\n"
-                f"?? *Ошибка: @{safe_username} не привязан к системе\\. Суперадмин должен добавить Telegram username в профиль\\.*"
+                f"❌ *Ошибка: @{safe_username} не привязан к системе\\. Суперадмин должен добавить Telegram username в профиль\\.*"
             )
             await edit_telegram_message(
                 message_id=message_id, text=new_text, reply_markup=keyboard
@@ -97,7 +96,7 @@ async def telegram_webhook(
         else:
             new_text = (
                 f"{escape_markdown_v2(base_text)}\n\n"
-                f"? *Заявка не найдена или уже удалена\\.*"
+                f"❌ *Заявка не найдена или уже удалена\\.*"
             )
             await edit_telegram_message(
                 message_id=message_id, text=new_text, reply_markup=None

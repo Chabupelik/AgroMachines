@@ -66,10 +66,10 @@ async def create_lead(
     summary="Список заявок (только менеджер/админ)",
 )
 async def get_leads(
+    lead_service: Annotated[LeadService, Depends(get_lead_service)],
+    current_user: Annotated[User, Depends(require_manager)],
     limit: int = 10,
     offset: int = 0,
-    lead_service: Annotated[LeadService, Depends(get_lead_service)] = None,
-    current_user: Annotated[User, Depends(require_manager)] = None,
 ):
     leads, total = await lead_service.get_all_leads(limit, offset)
     return PaginatedResponse(total=total, limit=limit, offset=offset, data=leads)
@@ -83,11 +83,16 @@ async def get_leads(
 async def update_lead_status(
     lead_id: int,
     new_status: str,
-    lead_service: Annotated[LeadService, Depends(get_lead_service)] = None,
-    current_user: Annotated[User, Depends(require_manager)] = None,
+    background_tasks: BackgroundTasks,
+    lead_service: Annotated[LeadService, Depends(get_lead_service)],
+    current_user: Annotated[User, Depends(require_manager)],
 ):
     lead = await lead_service.update_lead_status(
-        lead_id, new_status, current_user.username, current_user.id
+        lead_id,
+        new_status,
+        current_user.username,
+        current_user.id,
+        background_tasks,
     )
     return ResponseOK(data=lead)
 
@@ -99,8 +104,8 @@ async def update_lead_status(
 )
 async def delete_lead(
     lead_id: int,
-    lead_service: Annotated[LeadService, Depends(get_lead_service)] = None,
-    current_user: Annotated[User, Depends(require_superadmin)] = None,
+    lead_service: Annotated[LeadService, Depends(get_lead_service)],
+    current_user: Annotated[User, Depends(require_superadmin)],
 ):
     await lead_service.delete_lead(lead_id, current_user.id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

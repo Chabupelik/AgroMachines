@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import uuid
 
@@ -10,7 +11,10 @@ from app.models.user import User
 from app.repositories.audit_repo import AuditRepository
 from app.repositories.lead_repo import LeadRepository
 from app.schemas.lead.requests import LeadCreateRequest
-from app.workers.telegram_tasks import task_notify_new_lead
+from app.workers.telegram_tasks import (
+    task_notify_new_lead,
+    task_update_lead_status_message,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -124,6 +128,7 @@ class LeadService:
         new_status: str,
         admin_username: str,
         user_id: uuid.UUID,
+        bg_tasks: BackgroundTasks | None = None,
     ) -> Lead:
         lead = await self.lead_repo.get_by_id(lead_id)
         if not lead:
@@ -161,40 +166,27 @@ class LeadService:
         await self.lead_repo.session.refresh(lead)
 
         if lead.tg_message_id:
-            from app.integrations.telegram.client import edit_telegram_message
-            from app.integrations.telegram.formatters import escape_markdown_v2
-
-            safe_name = escape_markdown_v2(lead.client_name)
-            safe_phone = escape_markdown_v2(lead.client_phone)
-            safe_username = escape_markdown_v2(admin_username)
-
-            new_text = ""
-            if new_status == LeadStatus.IN_PROGRESS:
-                new_text = (
-                    f"?? *Заявка взята в работу\\!*\n\n"
-                    f"?? *Имя:* {safe_name}\n"
-                    f"?? *Телефон:* `{safe_phone}`\n\n"
-                    f"?? *Заявка взята в работу через сайт менеджером @{safe_username}*"
+            if bg_tasks:
+                bg_tasks.add_task(
+                    task_update_lead_status_message,
+                    tg_message_id=lead.tg_message_id,
+                    client_name=lead.client_name,
+                    client_phone=lead.client_phone,
+                    admin_username=admin_username,
+                    new_status=new_status,
+                    lead_id=lead.id,
                 )
-            elif new_status == LeadStatus.DONE:
-                new_text = (
-                    f"? *Заявка закрыта\\!*\n\n"
-                    f"?? *Имя:* {safe_name}\n"
-                    f"?? *Телефон:* `{safe_phone}`\n\n"
-                    f"?? _Обработка успешно завершена менеджером @{safe_username}_"
+            else:
+                asyncio.create_task(
+                    task_update_lead_status_message(
+                        tg_message_id=lead.tg_message_id,
+                        client_name=lead.client_name,
+                        client_phone=lead.client_phone,
+                        admin_username=admin_username,
+                        new_status=new_status,
+                        lead_id=lead.id,
+                    )
                 )
-
-            if new_text:
-                try:
-                    await edit_telegram_message(
-                        message_id=lead.tg_message_id, text=new_text, reply_markup=None
-                    )
-                except Exception as e:
-                    logger.warning(
-                        "Не удалось обновить статус заявки %s в Telegram: %s",
-                        lead.id,
-                        e,
-                    )
 
         return lead
 
