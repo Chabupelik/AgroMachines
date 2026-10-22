@@ -1,7 +1,8 @@
 from datetime import timedelta
-from uuid import UUID
+from uuid import UUID, uuid4
 
 from fastapi import HTTPException, status
+from jose import JWTError, jwt
 
 from app.core.config import settings
 from app.core.security import create_jwt_token, hash_password, verify_password
@@ -30,18 +31,77 @@ class AuthService:
 
         return user
 
-    def create_tokens(self, user_id: str, role: str):
+    def create_tokens(self, user_id: str | UUID, role: str) -> tuple[str, str]:
         access_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
         refresh_expires = timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
 
         access_token = create_jwt_token(
-            {"sub": str(user_id), "role": role, "type": "access"}, access_expires
+            {"sub": str(user_id), "role": role, "type": "access", "jti": str(uuid4())},
+            access_expires,
         )
         refresh_token = create_jwt_token(
-            {"sub": str(user_id), "role": role, "type": "refresh"}, refresh_expires
+            {"sub": str(user_id), "role": role, "type": "refresh", "jti": str(uuid4())},
+            refresh_expires,
         )
 
         return access_token, refresh_token
+
+    async def login(self, username: str, password: str) -> tuple[str, str, RoleEnum]:
+        user = await self.authenticate_user(username, password)
+        role_str = user.role.value if hasattr(user.role, "value") else str(user.role)
+        access_token, refresh_token = self.create_tokens(user.id, role_str)
+        return access_token, refresh_token, user.role
+
+    async def refresh_tokens(
+        self, refresh_token: str | None
+    ) -> tuple[str, str, RoleEnum]:
+        if not refresh_token:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Нет refresh-токена",
+            )
+
+        try:
+            payload = jwt.decode(
+                refresh_token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
+            )
+        except JWTError:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Refresh-токен недействителен или истёк",
+            )
+
+        if payload.get("type") != "refresh":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Неверный тип токена",
+            )
+
+        user_id_str = payload.get("sub")
+        if not user_id_str:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Некорректный идентификатор пользователя в токене",
+            )
+
+        try:
+            user_id = UUID(user_id_str)
+        except ValueError:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Некорректный формат идентификатора пользователя",
+            )
+
+        user = await self.user_repo.get_by_id(user_id)
+        if not user or not user.is_active:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Пользователь не найден или неактивен",
+            )
+
+        role_str = user.role.value if hasattr(user.role, "value") else str(user.role)
+        new_access, new_refresh = self.create_tokens(user.id, role_str)
+        return new_access, new_refresh, user.role
 
     async def create_user(self, schema: UserCreateRequest) -> User:
         if schema.role == RoleEnum.SUPERADMIN:

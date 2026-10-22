@@ -1,9 +1,8 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, Request, Response, status
 from fastapi.security import OAuth2PasswordRequestForm
-from jose import JWTError, jwt
 
 from app.api.dependencies import rate_limiter, require_superadmin
 from app.core.config import settings
@@ -27,17 +26,7 @@ CurrentSuperAdmin = Annotated[User, Depends(require_superadmin)]
 OAuth2Form = Annotated[OAuth2PasswordRequestForm, Depends()]
 
 
-@router.post(
-    "/login", response_model=TokenResponse, dependencies=[Depends(rate_limiter)]
-)
-async def login(
-    response: Response,
-    form_data: OAuth2Form,
-    auth_srv: AuthSrv,
-):
-    user = await auth_srv.authenticate_user(form_data.username, form_data.password)
-    access_token, refresh_token = auth_srv.create_tokens(user.id, user.role)
-
+def set_refresh_cookie(response: Response, refresh_token: str) -> None:
     response.set_cookie(
         key="refresh_token",
         value=refresh_token,
@@ -47,7 +36,29 @@ async def login(
         max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
     )
 
-    return TokenResponse(access_token=access_token, role=user.role)
+
+def delete_refresh_cookie(response: Response) -> None:
+    response.delete_cookie(
+        key="refresh_token",
+        secure=True,
+        httponly=True,
+        samesite="strict",
+    )
+
+
+@router.post(
+    "/login", response_model=TokenResponse, dependencies=[Depends(rate_limiter)]
+)
+async def login(
+    response: Response,
+    form_data: OAuth2Form,
+    auth_srv: AuthSrv,
+):
+    access_token, refresh_token, role = await auth_srv.login(
+        form_data.username, form_data.password
+    )
+    set_refresh_cookie(response, refresh_token)
+    return TokenResponse(access_token=access_token, role=role)
 
 
 @router.post("/refresh", response_model=TokenResponse)
@@ -56,36 +67,10 @@ async def refresh_token(
     response: Response,
     auth_srv: AuthSrv,
 ):
-    """Rolling Refresh: проверяет refresh-токен и выдаёт новый."""
     token = request.cookies.get("refresh_token")
-    if not token:
-        raise HTTPException(status_code=401, detail="Нет refresh-токена")
-
-    try:
-        payload = jwt.decode(
-            token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM]
-        )
-        if payload.get("type") != "refresh":
-            raise HTTPException(status_code=401, detail="Неверный тип токена")
-
-        new_access, new_refresh = auth_srv.create_tokens(
-            payload["sub"], payload["role"]
-        )
-
-        response.set_cookie(
-            key="refresh_token",
-            value=new_refresh,
-            httponly=True,
-            secure=True,
-            samesite="strict",
-            max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
-        )
-        return TokenResponse(access_token=new_access, role=payload["role"])
-
-    except JWTError:
-        raise HTTPException(
-            status_code=401, detail="Refresh-токен недействителен или истёк"
-        )
+    access_token, new_refresh, role = await auth_srv.refresh_tokens(token)
+    set_refresh_cookie(response, new_refresh)
+    return TokenResponse(access_token=access_token, role=role)
 
 
 @router.post(
@@ -147,7 +132,5 @@ async def delete_user(
 
 @router.post("/logout")
 async def logout(response: Response):
-    response.delete_cookie(
-        key="refresh_token", secure=True, httponly=True, samesite="strict"
-    )
+    delete_refresh_cookie(response)
     return {"status": "ok", "message": "Успешный выход"}
