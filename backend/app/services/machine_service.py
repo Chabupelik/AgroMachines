@@ -74,13 +74,11 @@ class MachineService:
         )
 
         urls_to_delete = set(machine.image_urls) - set(existing_urls)
-        for old_url in urls_to_delete:
-            try:
-                self.storage_client.delete_file(old_url)
-            except Exception as e:
-                logger.warning(
-                    "Ошибка удаления старого файла %s из MinIO: %s", old_url, e
-                )
+        if urls_to_delete:
+            delete_tasks = [
+                self.storage_client.delete_file(old_url) for old_url in urls_to_delete
+            ]
+            await asyncio.gather(*delete_tasks, return_exceptions=True)
 
         new_image_urls = []
         if files:
@@ -119,8 +117,11 @@ class MachineService:
                 detail="Карточка техники не найдена",
             )
 
-        for url in machine.image_urls:
-            self.storage_client.delete_file(url)
+        if machine.image_urls:
+            delete_tasks = [
+                self.storage_client.delete_file(url) for url in machine.image_urls
+            ]
+            await asyncio.gather(*delete_tasks, return_exceptions=True)
 
         await self.machine_repo.delete(machine)
 
