@@ -22,7 +22,7 @@ def _validate_specs_dict(
     return v
 
 
-class MachineBase(BaseModel):
+class MachineCreateRequest(BaseModel):
     title: str = Field(..., max_length=255, description="Название техники")
     description: str | None = Field(None, description="Описание техники")
     specifications: dict[str, SpecificationValue] = Field(
@@ -37,10 +37,6 @@ class MachineBase(BaseModel):
         cls, v: dict[str, SpecificationValue]
     ) -> dict[str, SpecificationValue]:
         return _validate_specs_dict(v)
-
-
-class MachineCreateRequest(MachineBase):
-    pass
 
 
 class MachineUpdateRequest(BaseModel):
