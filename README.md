@@ -13,7 +13,7 @@
 1. **Публичный каталог (Vue 3 SPA):** Фронтенд отображает карточки техники с фото, спецификациями и ценой. Весь статический бандл раздаётся через Nginx напрямую.
 2. **Система заявок с защитой от дублей:** При отправке формы обратного звонка бэкенд проверяет наличие активной заявки по номеру телефона (на уровне кода + частичный уникальный индекс PostgreSQL для защиты от race condition).
 3. **Telegram-интеграция:** Новые заявки мгновенно уходят менеджерам в чат с Inline-кнопками «Взять в работу» / «Завершить». Нажатие кнопки — webhook на бэкенд, обновление статуса в БД и редактирование сообщения в Telegram.
-4. **Полноценная Admin Panel:** Защищённый SPA для управления каталогом техники, заявками и пользователями с ролевой моделью (SUPERADMIN / EDITOR / MANAGER) и журналом аудита.
+4. **Полноценная Admin Panel:** Защищённый SPA для управления каталогом техники, заявками и пользователями с ролевой моделью (SUPERADMIN / ADMIN / EDITOR / MANAGER) и журналом аудита.
 
 ---
 
@@ -25,7 +25,7 @@
 `Браузер клиента` → `Cloudflare CDN` → `Nginx (reverse proxy)` → `FastAPI (Python)` → `PostgreSQL / Redis / MinIO`
 
 1. **Nginx:** Раздаёт статику Vue 3, проксирует `/api/` на FastAPI и `/media/` на MinIO. Порты MinIO наружу не открываются.
-2. **FastAPI (Async):** Асинхронный API на Python с SQLAlchemy 2.0 + asyncpg. Все тяжёлые операции (отправка в Telegram) выполняются через BackgroundTasks, не блокируя ответ клиенту.
+2. **FastAPI (Async):** Асинхронный API на Python с SQLAlchemy 2.0 + asyncpg. Все тяжёлые операции (отправка в Telegram) выполняются через BackgroundTasks, не блокируя ответ клиенту. При наличии скомпилированного бандла фронтенда в контейнере FastAPI также может раздавать статику и SPA автономно.
 3. **PostgreSQL + Redis + MinIO:** Основная БД, кэш/локи/rate-limit и S3-хранилище фото соответственно.
 
 ### Схема базы данных (PostgreSQL)
@@ -33,7 +33,7 @@
 | Таблица | Назначение |
 |---|---|
 | `users` | Администраторы с ролями (UUID PK, Argon2id хэш пароля, RBAC роль) |
-| `machines` | Карточки техники (JSONB спецификации, массив image_urls, цена Numeric) |
+| `machines` | Карточки техники (JSONB спецификации, массив image_urls, цена Numeric, доступность) |
 | `leads` | Заявки клиентов (статус NEW/IN_PROGRESS/DONE, частичный уникальный индекс по телефону) |
 | `audit_logs` | Журнал действий администраторов (user_id FK, action, entity_type, timestamp) |
 
@@ -44,7 +44,7 @@
 ### Авторизация (JWT + Rolling Refresh)
 - **Access Token** (15 мин) — возвращается в JSON, хранится в Pinia (RAM). Никакого localStorage.
 - **Refresh Token** (7 дней) — записывается в `HttpOnly; Secure; SameSite=Strict` cookie. Недоступен из JS.
-- **Rolling Refresh:** каждый `/api/refresh` перевыпускает оба токена, сдвигая срок жизни. Активный пользователь никогда не разлогинивается.
+- **Rolling Refresh:** каждый `POST /api/v1/auth/refresh` перевыпускает оба токена, сдвигая срок жизни. Активный пользователь никогда не разлогинивается.
 - **Argon2id:** пароли администраторов хранятся с хэшированием, рекомендованным OWASP.
 
 ### Защита публичных форм
@@ -66,7 +66,7 @@
 | **Frontend** | Vue 3, Vite, Pinia, Tailwind CSS / Vanilla CSS |
 | **Backend** | Python 3.12, FastAPI, SQLAlchemy 2.0, Alembic |
 | **Database** | PostgreSQL (основная БД), Redis (кэш, rate limit, локи) |
-| **Media Storage** | MinIO (S3-совместимое локальное хранилище, boto3) |
+| **Media Storage** | MinIO (S3-совместимое локальное хранилище, aioboto3) |
 | **Auth** | JWT (python-jose), Argon2id (argon2-cffi) |
 | **Infrastructure** | Docker, Docker Compose, Nginx, Cloudflare |
 | **Integrations** | Telegram Bot API, Cloudflare Turnstile |
@@ -91,6 +91,11 @@
    POSTGRES_USER=agroprom_admin
    POSTGRES_PASSWORD=<strong_password>
    POSTGRES_DB=agroprom_db
+   POSTGRES_HOST=db
+   POSTGRES_PORT=5432
+
+   REDIS_HOST=redis
+   REDIS_PORT=6379
 
    SECRET_KEY=<64-char-random-string>
    ALGORITHM=HS256
@@ -171,16 +176,16 @@ AgroMachines/
 1. Заполняет форму → фронтенд отправляет `POST /api/v1/leads/` с токеном Turnstile
 2. Бэкенд: проверяет капчу → валидирует телефон → проверяет дубль в БД → сохраняет заявку
 3. **BackgroundTask:** форматирует сообщение и отправляет в Telegram-группу менеджеров с кнопками
-4. Клиент получает ответ `200 OK` мгновенно, не ожидая ответа Telegram
+4. Клиент получает ответ `201 Created` мгновенно, не ожидая ответа Telegram
 
 ### Менеджер обрабатывает заявку
 1. Получает сообщение в Telegram с кнопками «Взять в работу» / «Завершить»
-2. Нажимает кнопку → Telegram шлёт callback на `POST /api/tg/webhook`
+2. Нажимает кнопку → Telegram шлёт callback на `POST /api/v1/telegram/webhook`
 3. Бэкенд атомарно обновляет статус (защита от гонки состояний)
 4. Сообщение в Telegram редактируется — отображает «В работе у @username»
 
 ### Администратор управляет каталогом
-1. Логин через `/admin` → получает Access Token (RAM) + Refresh Token (HttpOnly cookie)
+1. Логин через форму авторизации → `POST /api/v1/auth/login` → получает Access Token (RAM) + Refresh Token (HttpOnly cookie)
 2. CRUD техники с загрузкой фото → фото уходят в MinIO, URL записывается в PostgreSQL
 3. Все действия логируются в `audit_logs` с типом действия и ID объекта
 4. Суперадмин видит журнал аудита с фильтрами по пользователю, действию, типу объекта
@@ -192,6 +197,6 @@ AgroMachines/
 Скрипт `backup.sh` запускается автоматически (cron) раз в сутки:
 
 - **`pg_dump` + gzip** — дамп PostgreSQL с архивированием
-- **Синхронизация MinIO** — резервная копия медиа-бакета
+- **Синхронизация MinIO** — резервная копия медиа-тома в tar.gz
 - **Ротация логов аудита** — автоудаление записей старше 90 дней
-- **Ротация бэкапов** — хранение последних 30 дней с шифрованием перед отправкой во внешнее хранилище
+- **Ротация бэкапов** — локальное хранение архивов последних 30 дней

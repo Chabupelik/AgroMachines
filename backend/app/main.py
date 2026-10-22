@@ -173,7 +173,6 @@ app.include_router(
     telegram_router, prefix="/api/v1/telegram", tags=["Telegram Webhook"]
 )
 
-# Serve static frontend SPA if dist exists
 frontend_dist = Path("/code/frontend/dist")
 if not frontend_dist.is_dir():
     frontend_dist = Path(__file__).resolve().parent.parent.parent / "frontend" / "dist"

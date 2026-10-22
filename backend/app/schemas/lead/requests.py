@@ -1,6 +1,8 @@
+import html
+
 import phonenumbers
 from pydantic import BaseModel, field_validator
-import html
+
 
 class LeadCreateRequest(BaseModel):
     client_name: str
@@ -18,11 +20,15 @@ class LeadCreateRequest(BaseModel):
     def validate_phone(cls, value: str) -> str:
         try:
             parsed_number = phonenumbers.parse(value, "RU")
-            
+
             if not phonenumbers.is_valid_number(parsed_number):
-                raise ValueError("Введен некорректный или несуществующий номер телефона")
-            
-            return phonenumbers.format_number(parsed_number, phonenumbers.PhoneNumberFormat.E164)
-        
+                raise ValueError(
+                    "Введен некорректный или несуществующий номер телефона"
+                )
+
+            return phonenumbers.format_number(
+                parsed_number, phonenumbers.PhoneNumberFormat.E164
+            )
+
         except phonenumbers.NumberParseException:
             raise ValueError("Неверный формат номера. Используйте формат +7XXXXXXXXXX")

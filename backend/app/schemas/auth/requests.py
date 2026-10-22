@@ -1,15 +1,17 @@
 from pydantic import BaseModel
-from typing import Optional
+
 from app.models.user import RoleEnum
-    
+
+
 class UserCreateRequest(BaseModel):
     username: str
     password: str
     role: RoleEnum
-    telegram_username: Optional[str] = None
-    
+    telegram_username: str | None = None
+
+
 class UserUpdateRequest(BaseModel):
-    role: Optional[RoleEnum] = None
-    is_active: Optional[bool] = None
-    telegram_username: Optional[str] = None
-    password: Optional[str] = None
+    role: RoleEnum | None = None
+    is_active: bool | None = None
+    telegram_username: str | None = None
+    password: str | None = None

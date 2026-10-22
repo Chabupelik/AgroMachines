@@ -1,7 +1,7 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+
 class Settings(BaseSettings):
-    # Базовые настройки API
     PROJECT_NAME: str = "AgroMachines API"
     VERSION: str = "1.0.0"
     SHOW_DOCS: bool = True
@@ -40,5 +40,6 @@ class Settings(BaseSettings):
     MINIO_BUCKET_NAME: str = "agroprom-media"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+
 
 settings = Settings()
