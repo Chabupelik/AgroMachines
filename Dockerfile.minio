@@ -1,0 +1,10 @@
+FROM alpine:latest
+
+RUN apk add --no-cache minio minio-client curl
+
+EXPOSE 9000 9001
+VOLUME ["/data"]
+
+ENTRYPOINT ["minio"]
+CMD ["server", "/data"]
+

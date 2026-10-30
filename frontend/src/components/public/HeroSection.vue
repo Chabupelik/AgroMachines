@@ -65,7 +65,7 @@
       <div class="lg:col-span-5 relative max-w-[450px] lg:max-w-none mx-auto w-full">
         <div class="relative rounded-[40px] overflow-hidden shadow-2xl border-[12px] border-white bg-white">
           <img 
-            src="https://agromachines.chabupelik.su/media/hero.webp" 
+            :src="heroImage" 
             class="w-full aspect-[4/5] object-cover"
             alt="Agro Power"
           />
@@ -78,6 +78,7 @@
 
 <script setup>
 import BaseButton from '@/components/ui/BaseButton.vue'
+import heroImage from '@/assets/hero.webp'
 </script>
 
 <style scoped>

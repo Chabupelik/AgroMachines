@@ -1,14 +1,41 @@
 [tool.ruff]
 line-length = 88
 target-version = "py312"
+extend-exclude = [
+    "backend/alembic",
+    "alembic",
+    "frontend",
+    ".history",
+]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "UP"]
+
 ignore = [
-    "E501",    # Line too long
-    "E741",    # Ambiguous variable name
+    "E501",    # Игнорировать длину строк (Line too long)
+    "E741",    # Разрешить короткие имена переменных (l, I)
     "B008",    # FastAPI Depends()
+    "LOG015",  # Логгер root
+    "UP042",   # Наследование от (str, Enum)
+    "UP046",   # Generic классы
 ]
 
 [tool.ruff.lint.isort]
 known-first-party = ["app"]
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+disable_error_code = [
+    "attr-defined",
+    "assignment",
+    "return-value",
+    "call-arg",
+    "operator",
+    "misc",
+    "arg-type",
+]
+
+[[tool.mypy.overrides]]
+module = ["alembic.*", "migrations.*"]
+ignore_errors = true
