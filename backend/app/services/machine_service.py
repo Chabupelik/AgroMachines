@@ -76,7 +76,7 @@ class MachineService:
                         machine_schemas = [
                             MachineResponse.model_validate(m) for m in machines_db
                         ]
-                        result = PaginatedResponse(
+                        result: PaginatedResponse[MachineResponse] = PaginatedResponse(
                             total=total,
                             limit=limit,
                             offset=offset,
