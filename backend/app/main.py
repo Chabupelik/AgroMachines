@@ -39,9 +39,9 @@ async def lifespan(app: FastAPI):
         async with engine.begin() as conn:
             await conn.execute(text("SELECT 1"))
         await get_raw_redis_client().ping()
-        logger.info("?? Database and Redis connections established successfully.")
+        logger.info("Database and Redis connections established successfully.")
     except Exception as e:
-        logger.error(f"? Connection check failed: {e}")
+        logger.error(f"Connection check failed: {e}")
         sys.exit(1)
 
     yield
@@ -49,9 +49,9 @@ async def lifespan(app: FastAPI):
     try:
         await engine.dispose()
         await get_raw_redis_client().aclose()
-        logger.info("?? Database and Redis connections closed cleanly.")
+        logger.info("Database and Redis connections closed cleanly.")
     except Exception as e:
-        logger.error(f"? Error during connection teardown: {e}")
+        logger.error(f"Error during connection teardown: {e}")
 
 
 app = FastAPI(
@@ -77,12 +77,15 @@ app.add_middleware(
 
 @app.middleware("http")
 async def log_requests_middleware(request: Request, call_next):
+    if request.url.path == "/health":
+        return await call_next(request)
+
     start_time = time.time()
     response: Response = await call_next(request)
     process_time_ms = (time.time() - start_time) * 1000
     client_ip = get_client_ip(request)
     logger.info(
-        f'?? {client_ip} - "{request.method} {request.url.path}" '
+        f'{client_ip} - "{request.method} {request.url.path}" '
         f"{response.status_code} ({process_time_ms:.2f}ms)"
     )
     return response
@@ -124,7 +127,7 @@ async def pydantic_validation_exception_handler(request: Request, exc: Validatio
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
-    logger.error(f"?? {request.method} {request.url.path}: {exc}")
+    logger.error(f"{request.method} {request.url.path}: {exc}")
     return JSONResponse(
         status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
         content={
@@ -157,7 +160,7 @@ async def ready_check(
         await redis.ping()
         return ResponseOK(data={"postgres": "connected", "redis": "connected"})
     except Exception as e:
-        logger.error(f"? [READY CHECK FAILED]: {e}")
+        logger.error(f"[READY CHECK FAILED]: {e}")
         return JSONResponse(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             content={
