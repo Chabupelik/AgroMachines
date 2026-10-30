@@ -63,7 +63,7 @@
         <label class="text-[10px] text-text-muted uppercase tracking-widest font-extrabold block">Текущие фотографии в облаке ({{ existingUrls.length }})</label>
         <div class="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
           <div v-for="(url, idx) in existingUrls" :key="idx" class="group/thumb relative aspect-[4/3] rounded-xl overflow-hidden border border-border/40 shadow-sm shrink-0">
-            <img :src="url" @click="openLightbox(url)" class="w-full h-full object-cover cursor-zoom-in hover:scale-105 transition-transform duration-200">
+            <img :src="url" @click="openLightbox(url)" @error="(e) => (e.target.style.opacity = '0.3')" class="w-full h-full object-cover cursor-zoom-in hover:scale-105 transition-transform duration-200">
             
             <button 
               type="button" 
@@ -221,8 +221,8 @@ onMounted(() => {
     
     if (props.machine.specifications) {
       specList.value = Object.entries(props.machine.specifications).map(([key, value]) => ({
-        key,
-        value
+        key: String(key ?? ''),
+        value: String(value ?? '')
       }))
     }
   }
@@ -264,13 +264,17 @@ function closeLightbox() {
 }
 
 async function submitForm() {
-  if (!formData.value.title.trim()) return toast.error('Название техники обязательно')
+  const title = String(formData.value.title ?? '').trim()
+  if (!title) return toast.error('Название техники обязательно')
 
   const specsObject = {}
   specList.value.forEach(s => {
-    if (s.key.trim() && s.value.trim()) specsObject[s.key.trim()] = s.value.trim()
+    const k = String(s.key ?? '').trim()
+    const v = String(s.value ?? '').trim()
+    if (k && v) specsObject[k] = v
   })
 
+  formData.value.title = title
   formData.value.specifications = specsObject
   formData.value.image_urls = existingUrls.value
 

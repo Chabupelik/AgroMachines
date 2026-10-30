@@ -1,5 +1,6 @@
 import asyncio
 import io
+import json
 import logging
 import uuid
 
@@ -42,6 +43,33 @@ class MinioClient:
                 detail="Файл не является корректным изображением",
             )
 
+    async def _ensure_bucket(self, s3) -> None:
+        try:
+            await s3.head_bucket(Bucket=self.bucket_name)
+        except ClientError:
+            try:
+                await s3.create_bucket(Bucket=self.bucket_name)
+                policy = {
+                    "Version": "2012-10-17",
+                    "Statement": [
+                        {
+                            "Sid": "PublicRead",
+                            "Effect": "Allow",
+                            "Principal": "*",
+                            "Action": ["s3:GetObject"],
+                            "Resource": [f"arn:aws:s3:::{self.bucket_name}/*"],
+                        }
+                    ],
+                }
+                await s3.put_bucket_policy(
+                    Bucket=self.bucket_name,
+                    Policy=json.dumps(policy),
+                )
+            except ClientError as e:
+                logger.warning(
+                    "Could not auto-create or configure bucket policy: %s", e
+                )
+
     async def upload_file(self, file: UploadFile) -> str:
         unique_filename = f"{uuid.uuid4()}.webp"
 
@@ -53,6 +81,7 @@ class MinioClient:
             )
 
             async with self._get_client() as s3:
+                await self._ensure_bucket(s3)
                 await s3.put_object(
                     Bucket=self.bucket_name,
                     Key=unique_filename,
